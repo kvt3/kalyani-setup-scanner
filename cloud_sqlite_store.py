@@ -35,6 +35,16 @@ def cloud_sqlite_enabled() -> bool:
     return bool(_database_url())
 
 
+def cloud_sqlite_status() -> str:
+    if not cloud_sqlite_enabled():
+        return "SQLite local file"
+    try:
+        _ensure_cloud_table()
+    except Exception as exc:
+        return f"Postgres sync configured, connection failed: {exc.__class__.__name__}"
+    return "Postgres sync active"
+
+
 def _cloud_connect() -> Any:
     import psycopg
 

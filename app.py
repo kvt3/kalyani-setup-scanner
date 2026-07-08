@@ -44,6 +44,7 @@ scanner_module = importlib.reload(scanner_module)
 scan_state_module = importlib.reload(scan_state_module)
 schedule_config_module = importlib.reload(schedule_config_module)
 
+from cloud_sqlite_store import cloud_sqlite_status
 from rule_config import (
     MarubozuRuleConfig,
     MorningStarRuleConfig,
@@ -4059,6 +4060,7 @@ def _trade_payload_from_form(prefix: str, existing: pd.Series | None = None) -> 
 
 def trades_page() -> None:
     st.title("Trade Journal")
+    st.caption(f"Storage: {cloud_sqlite_status()}")
     st.caption(
         "Register planned trades, update exits, and track win rate, losses, risk/reward, realized R, open risk, and setup performance."
     )
