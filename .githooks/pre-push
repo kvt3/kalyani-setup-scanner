@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+cd "$(git rev-parse --show-toplevel)"
+
+if [ -x ".venv/bin/python" ]; then
+  PYTHON=".venv/bin/python"
+else
+  PYTHON="python3"
+fi
+
+echo "Syncing app SQLite databases before push..."
+"$PYTHON" sync_cloud_db.py push --if-configured

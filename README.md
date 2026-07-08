@@ -79,6 +79,20 @@ Notes:
 - This app reads `.env` locally, but hosted deployments should use Streamlit secrets or provider environment variables.
 - Background scheduled scans that depend on the local filesystem are better suited to a VM/container host than to a purely interactive Streamlit app.
 
+## Database Sync
+
+When `DATABASE_URL` is configured, the app syncs its SQLite data files to Postgres-backed storage. This keeps trades and stock tracker data across Streamlit redeploys.
+
+Useful commands:
+
+```bash
+python sync_cloud_db.py status
+python sync_cloud_db.py push
+python sync_cloud_db.py pull
+```
+
+The repo uses `.githooks/pre-push` to run `python sync_cloud_db.py push --if-configured` before a local `git push`. If `DATABASE_URL` is not configured locally, the hook prints a warning and lets the push continue.
+
 ## Notes
 
 - Full NASDAQ + NYSE scans can take a long time because fundamentals are checked per ticker.
