@@ -1,6 +1,11 @@
 __pycache__/
 *.py[cod]
 .venv/
-data/
 .env
 .streamlit/secrets.toml
+data/*
+!data/stock_tracking/
+!data/stock_tracking/stocks.db
+data/stock_tracking/*
+!data/stock_tracking/stocks.db
+!data/watchlists.sqlite3
