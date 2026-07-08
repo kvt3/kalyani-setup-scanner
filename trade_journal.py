@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 
+from cloud_sqlite_store import connect_synced_sqlite, reset_cloud_dirty
 from config import DB_PATH
 
 
@@ -48,9 +49,10 @@ def _ensure_trade_columns(conn: sqlite3.Connection) -> None:
 
 def _connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
+    conn = connect_synced_sqlite(db_path)
     conn.executescript(TRADE_SCHEMA)
     _ensure_trade_columns(conn)
+    reset_cloud_dirty(conn)
     return conn
 
 

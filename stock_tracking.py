@@ -19,6 +19,7 @@ import pandas as pd
 import requests
 import yfinance as yf
 
+from cloud_sqlite_store import connect_synced_sqlite
 from config import DATA_DIR, MIN_MARKET_CAP
 from database import load_eligible_ticker_symbols
 
@@ -113,7 +114,7 @@ SEC_8K_DEFAULT_PROMPT = (
 
 
 def _connect(db_path: Path = TRACKING_DB_PATH) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
+    conn = connect_synced_sqlite(db_path, row_factory=sqlite3.Row)
     conn.row_factory = sqlite3.Row
     return conn
 
