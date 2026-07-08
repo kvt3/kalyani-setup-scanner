@@ -4087,17 +4087,13 @@ def trades_page() -> None:
     closed_trades = trades[trades["status"].astype(str).str.lower().eq("closed")].copy() if not trades.empty else pd.DataFrame()
 
     trade_sections = ["Open Trades", "Add Trade", "Closed Trades", "Calendar", "Analytics"]
-    query_trade_section = st.query_params.get("trade_section")
-    trade_section_index = trade_sections.index(query_trade_section) if query_trade_section in trade_sections else 0
     selected_trade_section = st.radio(
         "Trade Journal Section",
         trade_sections,
-        index=trade_section_index,
+        index=0,
         horizontal=True,
+        key="trade_journal_section",
     )
-    if st.query_params.get("trade_section") != selected_trade_section:
-        st.query_params["page"] = "Trades"
-        st.query_params["trade_section"] = selected_trade_section
 
     if selected_trade_section == "Add Trade":
         st.subheader("Register Trade")
