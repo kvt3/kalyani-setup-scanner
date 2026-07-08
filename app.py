@@ -4082,11 +4082,24 @@ def trades_page() -> None:
     metric_cols[7].metric("Profit factor", _fmt_trade_number(analytics["profit_factor"]))
     metric_cols[8].metric("Open risk", f"${_fmt_trade_number(analytics['open_risk'])}")
 
-    add_tab, open_tab, closed_tab, calendar_tab, analytics_tab = st.tabs(
-        ["Add Trade", "Open Trades", "Closed Trades", "Calendar", "Analytics"]
-    )
+    initiated_trades = trades[trades["status"].astype(str).str.lower().eq("initiated")].copy() if not trades.empty else pd.DataFrame()
+    open_trades = trades[trades["status"].astype(str).str.lower().eq("open")].copy() if not trades.empty else pd.DataFrame()
+    closed_trades = trades[trades["status"].astype(str).str.lower().eq("closed")].copy() if not trades.empty else pd.DataFrame()
 
-    with add_tab:
+    trade_sections = ["Open Trades", "Add Trade", "Closed Trades", "Calendar", "Analytics"]
+    query_trade_section = st.query_params.get("trade_section")
+    trade_section_index = trade_sections.index(query_trade_section) if query_trade_section in trade_sections else 0
+    selected_trade_section = st.radio(
+        "Trade Journal Section",
+        trade_sections,
+        index=trade_section_index,
+        horizontal=True,
+    )
+    if st.query_params.get("trade_section") != selected_trade_section:
+        st.query_params["page"] = "Trades"
+        st.query_params["trade_section"] = selected_trade_section
+
+    if selected_trade_section == "Add Trade":
         st.subheader("Register Trade")
         st.caption("Fill the trade ticket from left to right. Planned risk and R:R are calculated after Save.")
         with st.form("add_trade_form"):
@@ -4104,11 +4117,7 @@ def trades_page() -> None:
                 except Exception as exc:
                     st.error(str(exc))
 
-    initiated_trades = trades[trades["status"].astype(str).str.lower().eq("initiated")].copy() if not trades.empty else pd.DataFrame()
-    open_trades = trades[trades["status"].astype(str).str.lower().eq("open")].copy() if not trades.empty else pd.DataFrame()
-    closed_trades = trades[trades["status"].astype(str).str.lower().eq("closed")].copy() if not trades.empty else pd.DataFrame()
-
-    with open_tab:
+    elif selected_trade_section == "Open Trades":
         selected_trade_ids: list[int] = []
         st.subheader("Open Trades")
         if open_trades.empty:
@@ -4148,7 +4157,7 @@ def trades_page() -> None:
                     st.success(f"Deleted trade #{selected_id}.")
                     st.rerun()
 
-    with closed_tab:
+    elif selected_trade_section == "Closed Trades":
         st.subheader("Closed Trades")
         if closed_trades.empty:
             st.write("No closed trades yet.")
@@ -4161,7 +4170,7 @@ def trades_page() -> None:
                 mime="text/csv",
             )
 
-    with calendar_tab:
+    elif selected_trade_section == "Calendar":
         st.subheader("Win / Loss Calendar")
         st.caption("Calendar is based on exit date and only includes closed Day Trade results.")
         day_trade_closed = (
@@ -4182,7 +4191,7 @@ def trades_page() -> None:
         selected_month = st.selectbox("Calendar month", month_options, key="trade_calendar_month")
         st.markdown(_trade_result_calendar_html(day_trade_closed, selected_month), unsafe_allow_html=True)
 
-    with analytics_tab:
+    else:
         st.subheader("Performance Analytics")
         detail_cols = st.columns(5)
         detail_cols[0].metric("Wins", f"{analytics['wins']:,}")
