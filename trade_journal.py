@@ -38,6 +38,17 @@ CREATE TABLE IF NOT EXISTS trades (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS trade_calendar_months (
+    month_key TEXT PRIMARY KEY,
+    trade_count INTEGER NOT NULL DEFAULT 0,
+    wins INTEGER NOT NULL DEFAULT 0,
+    losses INTEGER NOT NULL DEFAULT 0,
+    breakeven INTEGER NOT NULL DEFAULT 0,
+    total_pl REAL NOT NULL DEFAULT 0,
+    total_r REAL NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -176,6 +187,41 @@ def delete_trade(trade_id: int, db_path: Path = DB_PATH) -> None:
 def list_trades(db_path: Path = DB_PATH) -> pd.DataFrame:
     with _connect(db_path) as conn:
         return pd.read_sql_query("SELECT * FROM trades ORDER BY entry_date DESC, id DESC", conn)
+
+
+def save_trade_calendar_month(summary: dict[str, Any], db_path: Path = DB_PATH) -> None:
+    with _connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO trade_calendar_months (
+                month_key, trade_count, wins, losses, breakeven, total_pl, total_r
+            )
+            VALUES (
+                :month_key, :trade_count, :wins, :losses, :breakeven, :total_pl, :total_r
+            )
+            ON CONFLICT(month_key) DO UPDATE SET
+                trade_count=excluded.trade_count,
+                wins=excluded.wins,
+                losses=excluded.losses,
+                breakeven=excluded.breakeven,
+                total_pl=excluded.total_pl,
+                total_r=excluded.total_r,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            summary,
+        )
+
+
+def list_trade_calendar_months(db_path: Path = DB_PATH) -> pd.DataFrame:
+    with _connect(db_path) as conn:
+        return pd.read_sql_query(
+            """
+            SELECT month_key, trade_count, wins, losses, breakeven, total_pl, total_r, updated_at
+            FROM trade_calendar_months
+            ORDER BY month_key DESC
+            """,
+            conn,
+        )
 
 
 def build_trade_payload(

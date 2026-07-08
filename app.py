@@ -3952,6 +3952,41 @@ def _trade_result_calendar_html(closed_trades: pd.DataFrame, month_key: str) -> 
     )
 
 
+def _trade_calendar_month_summary(closed_trades: pd.DataFrame, month_key: str) -> dict[str, object]:
+    year, month = [int(part) for part in month_key.split("-")]
+    frame = closed_trades.copy()
+    if frame.empty or "exit_date" not in frame.columns:
+        frame = pd.DataFrame()
+    else:
+        exit_dates = pd.to_datetime(frame["exit_date"], errors="coerce")
+        frame = frame[exit_dates.dt.strftime("%Y-%m").eq(month_key)].copy()
+    if frame.empty:
+        return {
+            "month_key": month_key,
+            "label": f"{calendar.month_name[month]} {year}",
+            "trade_count": 0,
+            "wins": 0,
+            "losses": 0,
+            "breakeven": 0,
+            "total_pl": 0.0,
+            "total_r": 0.0,
+        }
+
+    outcome = frame["outcome"].astype(str)
+    realized_pl = pd.to_numeric(frame["realized_pl"], errors="coerce").fillna(0)
+    realized_r = pd.to_numeric(frame["realized_r"], errors="coerce").fillna(0)
+    return {
+        "month_key": month_key,
+        "label": f"{calendar.month_name[month]} {year}",
+        "trade_count": int(len(frame)),
+        "wins": int(outcome.eq("Win").sum()),
+        "losses": int(outcome.eq("Loss").sum()),
+        "breakeven": int(outcome.eq("Breakeven").sum()),
+        "total_pl": round(float(realized_pl.sum()), 2),
+        "total_r": round(float(realized_r.sum()), 2),
+    }
+
+
 TRADE_SETUP_OPTIONS = [
     "9 EMA Pullback",
     "ATH / 52W Breakout",
@@ -4187,7 +4222,34 @@ def trades_page() -> None:
         else:
             month_options = sorted(calendar_dates.dt.strftime("%Y-%m").unique(), reverse=True)
         selected_month = st.selectbox("Calendar month", month_options, key="trade_calendar_month")
+        month_summary = _trade_calendar_month_summary(day_trade_closed, selected_month)
+        trade_journal.save_trade_calendar_month(month_summary, DB_PATH)
+        summary_cols = st.columns(6)
+        summary_cols[0].metric("Month P/L", f"${_fmt_trade_number(month_summary['total_pl'])}")
+        summary_cols[1].metric("Month R", _fmt_trade_number(month_summary["total_r"]))
+        summary_cols[2].metric("Trades", f"{int(month_summary['trade_count']):,}")
+        summary_cols[3].metric("Wins", f"{int(month_summary['wins']):,}")
+        summary_cols[4].metric("Losses", f"{int(month_summary['losses']):,}")
+        summary_cols[5].metric("Breakeven", f"{int(month_summary['breakeven']):,}")
         st.markdown(_trade_result_calendar_html(day_trade_closed, selected_month), unsafe_allow_html=True)
+        saved_months = trade_journal.list_trade_calendar_months(DB_PATH)
+        if not saved_months.empty:
+            history = saved_months.rename(
+                columns={
+                    "month_key": "Month",
+                    "trade_count": "Trades",
+                    "wins": "Wins",
+                    "losses": "Losses",
+                    "breakeven": "Breakeven",
+                    "total_pl": "P/L",
+                    "total_r": "R",
+                    "updated_at": "Saved",
+                }
+            )
+            history["P/L"] = pd.to_numeric(history["P/L"], errors="coerce").map(lambda value: f"${value:,.2f}")
+            history["R"] = pd.to_numeric(history["R"], errors="coerce").map(lambda value: f"{value:+.2f}R")
+            st.markdown("**Saved Calendar Months**")
+            st.dataframe(history, width="stretch", hide_index=True)
 
     else:
         st.subheader("Performance Analytics")
