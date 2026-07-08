@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import gzip
 from pathlib import Path
 from typing import Any
 
 
 CLOUD_SQLITE_TABLE = "app_sqlite_blobs"
+GZIP_MAGIC = b"\x1f\x8b"
 MUTATING_SQL_PREFIXES = (
     "alter",
     "create",
@@ -17,6 +19,8 @@ MUTATING_SQL_PREFIXES = (
     "update",
     "vacuum",
 )
+_CLOUD_TABLE_READY = False
+_RESTORED_PATHS: set[str] = set()
 
 
 def _database_url() -> str:
@@ -52,6 +56,9 @@ def _cloud_connect() -> Any:
 
 
 def _ensure_cloud_table() -> None:
+    global _CLOUD_TABLE_READY
+    if _CLOUD_TABLE_READY:
+        return
     with _cloud_connect() as conn:
         conn.execute(
             f"""
@@ -62,6 +69,18 @@ def _ensure_cloud_table() -> None:
             )
             """
         )
+    _CLOUD_TABLE_READY = True
+
+
+def _pack_sqlite_content(db_path: Path) -> bytes:
+    return gzip.compress(db_path.read_bytes(), compresslevel=1)
+
+
+def _unpack_sqlite_content(content: object) -> bytes:
+    raw = bytes(content)
+    if raw.startswith(GZIP_MAGIC):
+        return gzip.decompress(raw)
+    return raw
 
 
 def sync_sqlite_from_cloud(db_path: Path) -> None:
@@ -70,6 +89,9 @@ def sync_sqlite_from_cloud(db_path: Path) -> None:
 
     db_path = Path(db_path)
     name = str(db_path)
+    if name in _RESTORED_PATHS:
+        return
+
     _ensure_cloud_table()
     with _cloud_connect() as conn:
         row = conn.execute(
@@ -78,11 +100,13 @@ def sync_sqlite_from_cloud(db_path: Path) -> None:
         ).fetchone()
         if row:
             db_path.parent.mkdir(parents=True, exist_ok=True)
-            db_path.write_bytes(bytes(row[0]))
+            db_path.write_bytes(_unpack_sqlite_content(row[0]))
+            _RESTORED_PATHS.add(name)
             return
 
     if db_path.exists():
         sync_sqlite_to_cloud(db_path)
+    _RESTORED_PATHS.add(name)
 
 
 def sync_sqlite_to_cloud(db_path: Path) -> None:
@@ -103,7 +127,7 @@ def sync_sqlite_to_cloud(db_path: Path) -> None:
                 content = EXCLUDED.content,
                 updated_at = now()
             """,
-            (str(db_path), db_path.read_bytes()),
+            (str(db_path), _pack_sqlite_content(db_path)),
         )
 
 
