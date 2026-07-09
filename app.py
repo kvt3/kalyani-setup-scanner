@@ -4196,6 +4196,28 @@ def trades_page() -> None:
             st.write("No closed trades yet.")
         else:
             st.dataframe(_format_trade_table(closed_trades), width="stretch", hide_index=True)
+            st.markdown("**Update Closed Trade**")
+            closed_trade_ids = [int(value) for value in closed_trades["id"].tolist()]
+            selected_closed_id = st.selectbox(
+                "Select closed trade",
+                closed_trade_ids,
+                format_func=lambda trade_id: f"#{trade_id} {closed_trades.loc[closed_trades['id'].eq(trade_id), 'ticker'].iloc[0]}",
+                key="closed_trade_selector",
+            )
+            selected_closed = trades.loc[trades["id"].eq(int(selected_closed_id))].iloc[0]
+            st.caption(f"Editing #{int(selected_closed_id)} {selected_closed['ticker']}")
+            closed_update_prefix = f"closed_update_trade_{int(selected_closed_id)}"
+            with st.form(f"closed_update_trade_form_{int(selected_closed_id)}"):
+                form_values = _trade_payload_from_form(closed_update_prefix, selected_closed)
+                update_submitted = st.form_submit_button("Update Closed Trade", type="primary", width="stretch")
+            if update_submitted:
+                try:
+                    payload = _build_trade_payload_compatible(form_values)
+                    trade_journal.update_trade(int(selected_closed_id), payload, DB_PATH)
+                    st.success(f"Updated closed trade #{int(selected_closed_id)}.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(str(exc))
             st.download_button(
                 "Export Closed Trades CSV",
                 data=closed_trades.to_csv(index=False).encode("utf-8"),
