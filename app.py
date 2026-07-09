@@ -3861,10 +3861,10 @@ def _trade_result_calendar_html(closed_trades: pd.DataFrame, month_key: str) -> 
             total_r = float(group["realized_r"].sum())
             total_pl = float(group["realized_pl"].sum())
             tickers = ", ".join(group["ticker"].astype(str).head(4).tolist())
-            if total_r > 0.05:
+            if total_pl > 0.005:
                 mood = "win"
                 label = "Winning day"
-            elif total_r < -0.05:
+            elif total_pl < -0.005:
                 mood = "loss"
                 label = "Losing day"
             else:
