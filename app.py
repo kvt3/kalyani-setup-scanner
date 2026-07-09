@@ -3861,15 +3861,12 @@ def _trade_result_calendar_html(closed_trades: pd.DataFrame, month_key: str) -> 
             total_r = float(group["realized_r"].sum())
             total_pl = float(group["realized_pl"].sum())
             tickers = ", ".join(group["ticker"].astype(str).head(4).tolist())
-            if total_r > 0.05 and losses == 0:
+            if total_r > 0.05:
                 mood = "win"
                 label = "Winning day"
-            elif total_r < -0.05 and wins == 0:
+            elif total_r < -0.05:
                 mood = "loss"
                 label = "Losing day"
-            elif wins and losses:
-                mood = "mixed"
-                label = "Mixed day"
             else:
                 mood = "flat"
                 label = "Breakeven day"
@@ -3932,8 +3929,6 @@ def _trade_result_calendar_html(closed_trades: pd.DataFrame, month_key: str) -> 
             .tr-cal-win .tr-cal-label, .tr-cal-win .tr-cal-main {color:#166534;}
             .tr-cal-loss {background:#fef2f2; border-color:#fecaca;}
             .tr-cal-loss .tr-cal-label, .tr-cal-loss .tr-cal-main {color:#991b1b;}
-            .tr-cal-mixed {background:#fffbeb; border-color:#fde68a;}
-            .tr-cal-mixed .tr-cal-label, .tr-cal-mixed .tr-cal-main {color:#92400e;}
             .tr-cal-flat {background:#f9fafb; border-color:#d1d5db;}
             .tr-cal-flat .tr-cal-label, .tr-cal-flat .tr-cal-main {color:#374151;}
             @media (max-width: 900px) {.tr-cal-cell {min-height:82px; padding:6px;} .tr-cal-sub, .tr-cal-tickers {display:none;}}
@@ -3944,7 +3939,6 @@ def _trade_result_calendar_html(closed_trades: pd.DataFrame, month_key: str) -> 
         '<div class="tr-cal-legend">'
         '<span><i class="tr-cal-dot" style="background:#22c55e;"></i>Win</span>'
         '<span><i class="tr-cal-dot" style="background:#ef4444;"></i>Loss</span>'
-        '<span><i class="tr-cal-dot" style="background:#f59e0b;"></i>Mixed</span>'
         '<span><i class="tr-cal-dot" style="background:#9ca3af;"></i>Breakeven</span>'
         "</div></div>"
         f'<div class="tr-cal-grid">{day_names}{"".join(cells)}</div>'
