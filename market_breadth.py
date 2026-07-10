@@ -22,6 +22,8 @@ ISHARES_IWM_HOLDINGS_DOCUMENT_URL = (
     "&portfolioId=239710&userType=individual&asOfDate={as_of_date}&component=holdings"
 )
 IWM_HOLDINGS_CACHE_PATH = DATA_DIR / "iwm_holdings_cache.csv"
+QQQ_HOLDINGS_CACHE_PATH = DATA_DIR / "qqq_holdings_cache.csv"
+DOW_HOLDINGS_CACHE_PATH = DATA_DIR / "dow_holdings_cache.csv"
 
 NASDAQ100_FALLBACK_TICKERS = [
     "AAPL",
@@ -121,6 +123,39 @@ NASDAQ100_FALLBACK_TICKERS = [
     "ZS",
 ]
 
+DOW30_FALLBACK_ROWS = [
+    {"Ticker": "MMM", "Name": "3M", "Sector": "Industrials"},
+    {"Ticker": "AXP", "Name": "American Express", "Sector": "Financials"},
+    {"Ticker": "AMGN", "Name": "Amgen", "Sector": "Health Care"},
+    {"Ticker": "AMZN", "Name": "Amazon", "Sector": "Consumer Discretionary"},
+    {"Ticker": "AAPL", "Name": "Apple", "Sector": "Information Technology"},
+    {"Ticker": "BA", "Name": "Boeing", "Sector": "Industrials"},
+    {"Ticker": "CAT", "Name": "Caterpillar", "Sector": "Industrials"},
+    {"Ticker": "CVX", "Name": "Chevron", "Sector": "Energy"},
+    {"Ticker": "CSCO", "Name": "Cisco Systems", "Sector": "Information Technology"},
+    {"Ticker": "KO", "Name": "Coca-Cola", "Sector": "Consumer Staples"},
+    {"Ticker": "DIS", "Name": "Disney", "Sector": "Communication Services"},
+    {"Ticker": "GS", "Name": "Goldman Sachs", "Sector": "Financials"},
+    {"Ticker": "HD", "Name": "Home Depot", "Sector": "Consumer Discretionary"},
+    {"Ticker": "HON", "Name": "Honeywell", "Sector": "Industrials"},
+    {"Ticker": "IBM", "Name": "IBM", "Sector": "Information Technology"},
+    {"Ticker": "JNJ", "Name": "Johnson & Johnson", "Sector": "Health Care"},
+    {"Ticker": "JPM", "Name": "JPMorgan Chase", "Sector": "Financials"},
+    {"Ticker": "MCD", "Name": "McDonald's", "Sector": "Consumer Discretionary"},
+    {"Ticker": "MRK", "Name": "Merck", "Sector": "Health Care"},
+    {"Ticker": "MSFT", "Name": "Microsoft", "Sector": "Information Technology"},
+    {"Ticker": "NVDA", "Name": "Nvidia", "Sector": "Information Technology"},
+    {"Ticker": "NKE", "Name": "Nike", "Sector": "Consumer Discretionary"},
+    {"Ticker": "PG", "Name": "Procter & Gamble", "Sector": "Consumer Staples"},
+    {"Ticker": "CRM", "Name": "Salesforce", "Sector": "Information Technology"},
+    {"Ticker": "SHW", "Name": "Sherwin-Williams", "Sector": "Materials"},
+    {"Ticker": "TRV", "Name": "Travelers", "Sector": "Financials"},
+    {"Ticker": "UNH", "Name": "UnitedHealth Group", "Sector": "Health Care"},
+    {"Ticker": "V", "Name": "Visa", "Sector": "Financials"},
+    {"Ticker": "WMT", "Name": "Walmart", "Sector": "Consumer Staples"},
+    {"Ticker": "GOOGL", "Name": "Alphabet", "Sector": "Communication Services"},
+]
+
 
 @dataclass(frozen=True)
 class IndexUniverse:
@@ -190,6 +225,97 @@ def _read_ishares_holdings_csv(text: str) -> pd.DataFrame:
     return table.rename(columns={columns["Ticker"]: "Ticker"})
 
 
+def _read_cached_holdings_csv(path: Any, symbol_columns: tuple[str, ...] = ("Ticker", "Symbol")) -> pd.DataFrame:
+    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    lines = text.splitlines()
+    header_index = None
+    symbol_column = ""
+    for index, line in enumerate(lines):
+        cells = [cell.strip().strip('"').lstrip("\ufeff") for cell in line.split(",")]
+        upper_cells = {cell.upper(): cell for cell in cells}
+        for candidate in symbol_columns:
+            if candidate.upper() in upper_cells:
+                header_index = index
+                symbol_column = upper_cells[candidate.upper()]
+                break
+        if header_index is not None:
+            break
+    if header_index is None:
+        raise RuntimeError(f"Could not find symbol header in {path}")
+
+    table = pd.read_csv(StringIO("\n".join(lines[header_index:])))
+    columns = {str(column).strip(): column for column in table.columns}
+    if symbol_column not in columns:
+        raise RuntimeError(f"Cached holdings missing symbol column. Columns: {list(table.columns)[:8]}")
+    return table.rename(columns={columns[symbol_column]: "Ticker"})
+
+
+def _universe_from_table(
+    *,
+    key: str,
+    label: str,
+    proxy: str,
+    table: pd.DataFrame,
+    symbol_col: str,
+    source: str,
+    sector_col: str = "",
+    industry_col: str = "",
+    name_col: str = "",
+) -> IndexUniverse:
+    tickers = [_normalize_symbol(symbol) for symbol in table[symbol_col]]
+    sectors = {
+        _normalize_symbol(row[symbol_col]): str(row.get(sector_col) or "Unknown")
+        for _, row in table.iterrows()
+        if _normalize_symbol(row[symbol_col])
+    }
+    industries = {
+        _normalize_symbol(row[symbol_col]): str(row.get(industry_col) or "")
+        for _, row in table.iterrows()
+        if _normalize_symbol(row[symbol_col])
+    }
+    names = {
+        _normalize_symbol(row[symbol_col]): str(row.get(name_col) or "")
+        for _, row in table.iterrows()
+        if _normalize_symbol(row[symbol_col])
+    }
+    return IndexUniverse(
+        key=key,
+        label=label,
+        proxy=proxy,
+        tickers=sorted({ticker for ticker in tickers if ticker}),
+        sectors=sectors,
+        industries=industries,
+        names=names,
+        source=source,
+    )
+
+
+def _load_cached_universe(path: Any, key: str, label: str, proxy: str, source: str) -> IndexUniverse:
+    table = _read_cached_holdings_csv(path)
+    sector_col = "Sector" if "Sector" in table.columns else "GICS Sector" if "GICS Sector" in table.columns else ""
+    industry_col = (
+        "Industry"
+        if "Industry" in table.columns
+        else "Sub-Industry"
+        if "Sub-Industry" in table.columns
+        else "GICS Sub-Industry"
+        if "GICS Sub-Industry" in table.columns
+        else ""
+    )
+    name_col = "Name" if "Name" in table.columns else "Company" if "Company" in table.columns else "Security" if "Security" in table.columns else ""
+    return _universe_from_table(
+        key=key,
+        label=label,
+        proxy=proxy,
+        table=table,
+        symbol_col="Ticker",
+        source=source,
+        sector_col=sector_col,
+        industry_col=industry_col,
+        name_col=name_col,
+    )
+
+
 def _iwm_holdings_document_urls() -> list[str]:
     completed_date = latest_completed_us_session()
     dates = [
@@ -244,6 +370,14 @@ def _load_nasdaq100_universe() -> IndexUniverse:
             table = _read_html_table("https://en.wikipedia.org/wiki/Nasdaq-100", ("Symbol",))
             symbol_col = "Symbol"
         except Exception as symbol_exc:
+            if QQQ_HOLDINGS_CACHE_PATH.exists():
+                return _load_cached_universe(
+                    QQQ_HOLDINGS_CACHE_PATH,
+                    key="nasdaq100",
+                    label="QQQ / Nasdaq 100",
+                    proxy="QQQ",
+                    source=f"Cached QQQ/Nasdaq 100 holdings; live source unavailable: {ticker_exc}; {symbol_exc}",
+                )
             tickers = NASDAQ100_FALLBACK_TICKERS
             return IndexUniverse(
                 key="nasdaq100",
@@ -259,61 +393,72 @@ def _load_nasdaq100_universe() -> IndexUniverse:
                 ),
             )
 
-    tickers = [_normalize_symbol(symbol) for symbol in table[symbol_col]]
     sector_col = "GICS Sector" if "GICS Sector" in table.columns else "Sector" if "Sector" in table.columns else ""
     industry_col = "GICS Sub-Industry" if "GICS Sub-Industry" in table.columns else "Sub-Industry" if "Sub-Industry" in table.columns else ""
     name_col = "Company" if "Company" in table.columns else "Security" if "Security" in table.columns else "Name" if "Name" in table.columns else ""
-    sectors = {
-        _normalize_symbol(row[symbol_col]): str(row.get(sector_col) or "Unknown")
-        for _, row in table.iterrows()
-        if _normalize_symbol(row[symbol_col])
-    }
-    industries = {
-        _normalize_symbol(row[symbol_col]): str(row.get(industry_col) or "")
-        for _, row in table.iterrows()
-        if _normalize_symbol(row[symbol_col])
-    }
-    names = {
-        _normalize_symbol(row[symbol_col]): str(row.get(name_col) or "")
-        for _, row in table.iterrows()
-        if _normalize_symbol(row[symbol_col])
-    }
-    return IndexUniverse(
+    cache = pd.DataFrame(
+        {
+            "Ticker": table[symbol_col].map(_normalize_symbol),
+            "Name": table[name_col] if name_col else "",
+            "Sector": table[sector_col] if sector_col else "",
+            "Industry": table[industry_col] if industry_col else "",
+        }
+    )
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    cache.dropna(subset=["Ticker"]).to_csv(QQQ_HOLDINGS_CACHE_PATH, index=False)
+    return _universe_from_table(
         key="nasdaq100",
         label="QQQ / Nasdaq 100",
         proxy="QQQ",
-        tickers=sorted({ticker for ticker in tickers if ticker}),
-        sectors=sectors,
-        industries=industries,
-        names=names,
+        table=table,
+        symbol_col=symbol_col,
+        sector_col=sector_col,
+        industry_col=industry_col,
+        name_col=name_col,
         source=source,
     )
 
 
 def _load_dow_universe() -> IndexUniverse:
-    table = _read_html_table("https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average", ("Symbol",))
-    tickers = [_normalize_symbol(symbol) for symbol in table["Symbol"]]
-    sector_col = "Industry" if "Industry" in table.columns else ""
-    name_col = "Company" if "Company" in table.columns else ""
-    sectors = {
-        _normalize_symbol(row["Symbol"]): str(row.get(sector_col) or "Unknown")
-        for _, row in table.iterrows()
-        if _normalize_symbol(row["Symbol"])
-    }
-    names = {
-        _normalize_symbol(row["Symbol"]): str(row.get(name_col) or "")
-        for _, row in table.iterrows()
-        if _normalize_symbol(row["Symbol"])
-    }
-    return IndexUniverse(
+    try:
+        table = _read_html_table("https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average", ("Symbol",))
+        source = "Wikipedia Dow Jones Industrial Average constituents"
+    except Exception as exc:
+        if DOW_HOLDINGS_CACHE_PATH.exists():
+            return _load_cached_universe(
+                DOW_HOLDINGS_CACHE_PATH,
+                key="dow30",
+                label="Dow 30",
+                proxy="DIA",
+                source=f"Cached Dow 30 constituents; live source unavailable: {exc}",
+            )
+        table = pd.DataFrame(DOW30_FALLBACK_ROWS)
+        source = f"Static Dow 30 fallback; live source unavailable: {exc}"
+
+    sector_col = "Sector" if "Sector" in table.columns else "Industry" if "Industry" in table.columns else ""
+    name_col = "Company" if "Company" in table.columns else "Name" if "Name" in table.columns else ""
+    cache = pd.DataFrame(
+        {
+            "Ticker": table["Symbol"].map(_normalize_symbol) if "Symbol" in table.columns else table["Ticker"].map(_normalize_symbol),
+            "Name": table[name_col] if name_col else "",
+            "Sector": table[sector_col] if sector_col else "",
+            "Industry": table[sector_col] if sector_col else "",
+        }
+    )
+    if source.startswith("Wikipedia"):
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        cache.dropna(subset=["Ticker"]).to_csv(DOW_HOLDINGS_CACHE_PATH, index=False)
+    symbol_col = "Symbol" if "Symbol" in table.columns else "Ticker"
+    return _universe_from_table(
         key="dow30",
         label="Dow 30",
         proxy="DIA",
-        tickers=sorted({ticker for ticker in tickers if ticker}),
-        sectors=sectors,
-        industries=sectors,
-        names=names,
-        source="Wikipedia Dow Jones Industrial Average constituents",
+        table=table,
+        symbol_col=symbol_col,
+        sector_col=sector_col,
+        industry_col=sector_col,
+        name_col=name_col,
+        source=source,
     )
 
 
