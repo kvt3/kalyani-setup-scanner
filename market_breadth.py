@@ -163,6 +163,25 @@ def _read_html_table(url: str, required_columns: tuple[str, ...]) -> pd.DataFram
     raise RuntimeError(f"Could not find table with columns: {required_columns}")
 
 
+def _read_ishares_holdings_csv(text: str) -> pd.DataFrame:
+    lines = text.splitlines()
+    header_index = None
+    for index, line in enumerate(lines):
+        first_cell = line.split(",", 1)[0].strip().strip('"').lstrip("\ufeff").upper()
+        if first_cell == "TICKER":
+            header_index = index
+            break
+    if header_index is None:
+        preview = " ".join(line.strip() for line in lines[:3] if line.strip())[:200]
+        raise RuntimeError(f"Could not find iShares holdings CSV header. Response starts: {preview or 'empty response'}")
+
+    table = pd.read_csv(StringIO("\n".join(lines[header_index:])))
+    columns = {str(column).strip(): column for column in table.columns}
+    if "Ticker" not in columns:
+        raise RuntimeError(f"iShares holdings CSV missing Ticker column. Columns: {list(table.columns)[:8]}")
+    return table.rename(columns={columns["Ticker"]: "Ticker"})
+
+
 def _load_sp500_universe() -> IndexUniverse:
     table = _read_html_table("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", ("Symbol",))
     tickers = [_normalize_symbol(symbol) for symbol in table["Symbol"]]
@@ -247,20 +266,21 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
     source_error = ""
     try:
         headers = {
+            "Accept": "text/csv,application/csv,text/plain,*/*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.ishares.com/us/products/239710/ishares-russell-2000-etf",
             "User-Agent": (
-                "KalyaniSetupScanner/1.0 "
-                "(mailto:research@example.com) Python requests"
-            )
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/126.0 Safari/537.36"
+            ),
         }
         try:
             response = requests.get(ISHARES_IWM_HOLDINGS_URL, headers=headers, timeout=30)
         except requests.exceptions.SSLError:
             response = requests.get(ISHARES_IWM_HOLDINGS_URL, headers=headers, timeout=30, verify=False)
         response.raise_for_status()
-        lines = response.text.splitlines()
-        header_index = next(index for index, line in enumerate(lines) if line.startswith("Ticker,"))
-        csv_text = "\n".join(lines[header_index:])
-        table = pd.read_csv(StringIO(csv_text))
+        table = _read_ishares_holdings_csv(response.text)
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         table.to_csv(IWM_HOLDINGS_CACHE_PATH, index=False)
         source = "iShares IWM holdings filtered to saved $500M+ universe"
