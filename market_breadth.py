@@ -240,6 +240,8 @@ def _load_dow_universe() -> IndexUniverse:
 
 
 def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
+    eligible_tickers = {_normalize_symbol(ticker) for ticker in fallback_tickers}
+    eligible_tickers.discard("")
     try:
         headers = {
             "User-Agent": (
@@ -257,19 +259,21 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
         csv_text = "\n".join(lines[header_index:])
         table = pd.read_csv(StringIO(csv_text))
         table = table[table.get("Asset Class", "").astype(str).str.upper().eq("EQUITY")] if "Asset Class" in table.columns else table
-        tickers = [_normalize_symbol(symbol) for symbol in table["Ticker"]]
+        table["_normalized_ticker"] = table["Ticker"].map(_normalize_symbol)
+        if eligible_tickers:
+            table = table[table["_normalized_ticker"].isin(eligible_tickers)]
+        tickers = [ticker for ticker in table["_normalized_ticker"] if ticker]
         sector_col = "Sector" if "Sector" in table.columns else ""
         sectors = {
             _normalize_symbol(row["Ticker"]): str(row.get(sector_col) or "Unknown")
             for _, row in table.iterrows()
             if _normalize_symbol(row["Ticker"])
         }
-        source = "iShares IWM holdings"
+        source = "iShares IWM holdings filtered to saved $500M+ universe"
     except Exception as exc:
-        fallback_limit = 300
-        tickers = [_normalize_symbol(symbol) for symbol in fallback_tickers[:fallback_limit]]
-        sectors = {ticker: "Saved $500M+ universe" for ticker in tickers if ticker}
-        source = f"Fallback top {fallback_limit} saved $500M+ tickers; iShares unavailable: {exc}"
+        tickers = []
+        sectors = {}
+        source = f"iShares IWM holdings unavailable; Russell 2000 fallback disabled to avoid non-Russell tickers: {exc}"
 
     return IndexUniverse(
         key="russell2000",
