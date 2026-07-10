@@ -1,0 +1,31 @@
+Ticker,Name,Sector,Industry
+MMM,3M,Industrials,Industrials
+GOOGL,Alphabet,Communication Services,Communication Services
+AXP,American Express,Financials,Financials
+AMGN,Amgen,Health Care,Health Care
+AMZN,Amazon,Consumer Discretionary,Consumer Discretionary
+AAPL,Apple,Information Technology,Information Technology
+BA,Boeing,Industrials,Industrials
+CAT,Caterpillar,Industrials,Industrials
+CVX,Chevron,Energy,Energy
+CSCO,Cisco,Information Technology,Information Technology
+KO,Coca-Cola,Consumer Staples,Consumer Staples
+DIS,Disney,Communication Services,Communication Services
+GS,Goldman Sachs,Financials,Financials
+HD,Home Depot,Consumer Discretionary,Consumer Discretionary
+HON,Honeywell Technologies,Industrials,Industrials
+IBM,IBM,Information Technology,Information Technology
+JNJ,Johnson & Johnson,Health Care,Health Care
+JPM,JPMorgan Chase,Financials,Financials
+MCD,McDonald's,Consumer Discretionary,Consumer Discretionary
+MRK,Merck,Health Care,Health Care
+MSFT,Microsoft,Information Technology,Information Technology
+NKE,Nike,Consumer Discretionary,Consumer Discretionary
+NVDA,Nvidia,Information Technology,Information Technology
+PG,Procter & Gamble,Consumer Staples,Consumer Staples
+CRM,Salesforce,Information Technology,Information Technology
+SHW,Sherwin-Williams,Materials,Materials
+TRV,"Travelers Companies, Inc.",Financials,Financials
+UNH,UnitedHealth Group,Health Care,Health Care
+V,Visa,Financials,Financials
+WMT,Walmart,Consumer Staples,Consumer Staples

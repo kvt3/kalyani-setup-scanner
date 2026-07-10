@@ -4,6 +4,7 @@ __pycache__/
 .env
 .streamlit/secrets.toml
 data/*
+!data/*_holdings_cache.csv
 !data/stock_tracking/
 !data/stock_tracking/stocks.db
 data/stock_tracking/*
