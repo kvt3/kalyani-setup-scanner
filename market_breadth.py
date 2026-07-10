@@ -22,6 +22,7 @@ ISHARES_IWM_HOLDINGS_DOCUMENT_URL = (
     "&portfolioId=239710&userType=individual&asOfDate={as_of_date}&component=holdings"
 )
 IWM_HOLDINGS_CACHE_PATH = DATA_DIR / "iwm_holdings_cache.csv"
+SP500_HOLDINGS_CACHE_PATH = DATA_DIR / "sp500_holdings_cache.csv"
 QQQ_HOLDINGS_CACHE_PATH = DATA_DIR / "qqq_holdings_cache.csv"
 DOW_HOLDINGS_CACHE_PATH = DATA_DIR / "dow_holdings_cache.csv"
 NASDAQ100_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/List_of_NASDAQ-100_companies"
@@ -356,40 +357,88 @@ def _iwm_holdings_document_urls() -> list[str]:
     return urls
 
 
-def _load_sp500_universe() -> IndexUniverse:
-    table = _read_html_table("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", ("Symbol",))
-    tickers = [_normalize_symbol(symbol) for symbol in table["Symbol"]]
+def _load_sp500_universe(refresh_constituents: bool = False) -> IndexUniverse:
+    if not refresh_constituents and SP500_HOLDINGS_CACHE_PATH.exists():
+        return _load_cached_universe(
+            SP500_HOLDINGS_CACHE_PATH,
+            key="sp500",
+            label="S&P 500",
+            proxy="SPY",
+            source="Cached S&P 500 constituents",
+        )
+    if not refresh_constituents:
+        return IndexUniverse(
+            key="sp500",
+            label="S&P 500",
+            proxy="SPY",
+            tickers=[],
+            sectors={},
+            industries={},
+            names={},
+            source="No cached S&P 500 constituents available; click Refresh Market Condition to load Wikipedia constituents",
+        )
+
+    try:
+        table = _read_html_table("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", ("Symbol",))
+    except Exception as exc:
+        if SP500_HOLDINGS_CACHE_PATH.exists():
+            return _load_cached_universe(
+                SP500_HOLDINGS_CACHE_PATH,
+                key="sp500",
+                label="S&P 500",
+                proxy="SPY",
+                source=f"Cached S&P 500 constituents; live source unavailable: {exc}",
+            )
+        raise
+
     sector_col = "GICS Sector" if "GICS Sector" in table.columns else ""
     industry_col = "GICS Sub-Industry" if "GICS Sub-Industry" in table.columns else ""
     name_col = "Security" if "Security" in table.columns else ""
-    sectors = {
-        _normalize_symbol(row["Symbol"]): str(row.get(sector_col) or "Unknown")
-        for _, row in table.iterrows()
-        if _normalize_symbol(row["Symbol"])
-    }
-    industries = {
-        _normalize_symbol(row["Symbol"]): str(row.get(industry_col) or "")
-        for _, row in table.iterrows()
-        if _normalize_symbol(row["Symbol"])
-    }
-    names = {
-        _normalize_symbol(row["Symbol"]): str(row.get(name_col) or "")
-        for _, row in table.iterrows()
-        if _normalize_symbol(row["Symbol"])
-    }
-    return IndexUniverse(
+    cache = pd.DataFrame(
+        {
+            "Ticker": table["Symbol"].map(_normalize_symbol),
+            "Name": table[name_col] if name_col else "",
+            "Sector": table[sector_col] if sector_col else "",
+            "Industry": table[industry_col] if industry_col else "",
+        }
+    )
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    cache.dropna(subset=["Ticker"]).to_csv(SP500_HOLDINGS_CACHE_PATH, index=False)
+    return _universe_from_table(
         key="sp500",
         label="S&P 500",
         proxy="SPY",
-        tickers=sorted({ticker for ticker in tickers if ticker}),
-        sectors=sectors,
-        industries=industries,
-        names=names,
+        table=table,
+        symbol_col="Symbol",
+        sector_col=sector_col,
+        industry_col=industry_col,
+        name_col=name_col,
         source="Wikipedia S&P 500 constituents",
     )
 
 
-def _load_nasdaq100_universe() -> IndexUniverse:
+def _load_nasdaq100_universe(refresh_constituents: bool = False) -> IndexUniverse:
+    if not refresh_constituents:
+        if QQQ_HOLDINGS_CACHE_PATH.exists():
+            return _load_cached_universe(
+                QQQ_HOLDINGS_CACHE_PATH,
+                key="nasdaq100",
+                label="QQQ / Nasdaq 100",
+                proxy="QQQ",
+                source="Cached QQQ/Nasdaq 100 constituents",
+            )
+        return _universe_from_table(
+            key="nasdaq100",
+            label="QQQ / Nasdaq 100",
+            proxy="QQQ",
+            table=pd.DataFrame(NASDAQ100_FALLBACK_ROWS),
+            symbol_col="Ticker",
+            sector_col="Sector",
+            industry_col="Industry",
+            name_col="Name",
+            source="Fallback QQQ/Nasdaq 100 tickers from Wikipedia snapshot; no cached list yet",
+        )
+
     symbol_col = "Ticker"
     source = "Wikipedia Nasdaq 100 constituents"
     try:
@@ -456,7 +505,29 @@ def _load_nasdaq100_universe() -> IndexUniverse:
     )
 
 
-def _load_dow_universe() -> IndexUniverse:
+def _load_dow_universe(refresh_constituents: bool = False) -> IndexUniverse:
+    if not refresh_constituents:
+        if DOW_HOLDINGS_CACHE_PATH.exists():
+            return _load_cached_universe(
+                DOW_HOLDINGS_CACHE_PATH,
+                key="dow30",
+                label="Dow 30",
+                proxy="DIA",
+                source="Cached Dow 30 constituents",
+            )
+        table = pd.DataFrame(DOW30_FALLBACK_ROWS)
+        return _universe_from_table(
+            key="dow30",
+            label="Dow 30",
+            proxy="DIA",
+            table=table,
+            symbol_col="Ticker",
+            sector_col="Sector",
+            industry_col="Sector",
+            name_col="Name",
+            source="Static Dow 30 fallback; no cached list yet",
+        )
+
     try:
         table = _read_html_table("https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average", ("Symbol",))
         source = "Wikipedia Dow Jones Industrial Average constituents"
@@ -499,64 +570,77 @@ def _load_dow_universe() -> IndexUniverse:
     )
 
 
-def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
+def _load_iwm_universe(fallback_tickers: list[str], refresh_constituents: bool = False) -> IndexUniverse:
     eligible_tickers = {_normalize_symbol(ticker) for ticker in fallback_tickers}
     eligible_tickers.discard("")
     source_error = ""
-    try:
-        headers = {
-            "Accept": "text/csv,application/csv,text/plain,*/*",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": ISHARES_IWM_PRODUCT_URL,
-            "X-Requested-With": "XMLHttpRequest",
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/126.0 Safari/537.36"
-            ),
-        }
-        session = requests.Session()
-        try:
-            session.get(ISHARES_IWM_PRODUCT_URL, headers=headers, timeout=30)
-            response = None
-            last_error: Exception | None = None
-            for url in _iwm_holdings_document_urls():
-                try:
-                    candidate = session.get(url, headers=headers, timeout=30)
-                    candidate.raise_for_status()
-                    _read_ishares_holdings_csv(candidate.text)
-                    response = candidate
-                    break
-                except Exception as exc:
-                    last_error = exc
-            if response is None:
-                raise RuntimeError(f"No iShares holdings CSV response found: {last_error}")
-        except requests.exceptions.SSLError:
-            session.get(ISHARES_IWM_PRODUCT_URL, headers=headers, timeout=30, verify=False)
-            response = None
-            last_error = None
-            for url in _iwm_holdings_document_urls():
-                try:
-                    candidate = session.get(url, headers=headers, timeout=30, verify=False)
-                    candidate.raise_for_status()
-                    _read_ishares_holdings_csv(candidate.text)
-                    response = candidate
-                    break
-                except Exception as exc:
-                    last_error = exc
-            if response is None:
-                raise RuntimeError(f"No iShares holdings CSV response found: {last_error}")
-        response.raise_for_status()
-        table = _read_ishares_holdings_csv(response.text)
-        source = "iShares IWM holdings filtered to saved $500M+ universe"
-    except Exception as exc:
-        source_error = str(exc)
+    if not refresh_constituents:
         if IWM_HOLDINGS_CACHE_PATH.exists():
-            table = _read_ishares_holdings_csv(IWM_HOLDINGS_CACHE_PATH.read_text(encoding="utf-8-sig", errors="replace"))
-            source = f"Cached iShares IWM holdings filtered to saved $500M+ universe; live source unavailable: {exc}"
+            try:
+                table = _read_ishares_holdings_csv(IWM_HOLDINGS_CACHE_PATH.read_text(encoding="utf-8-sig", errors="replace"))
+                source = "Cached iShares IWM holdings filtered to saved $500M+ universe"
+            except Exception as exc:
+                source_error = str(exc)
+                table = pd.DataFrame()
+                source = f"Cached iShares IWM holdings unreadable: {exc}"
         else:
             table = pd.DataFrame()
-            source = f"iShares IWM holdings unavailable; Russell 2000 fallback disabled to avoid non-Russell tickers: {exc}"
+            source = "No cached IWM holdings available; click Refresh Market Condition to load iShares/BlackRock holdings"
+    else:
+        try:
+            headers = {
+                "Accept": "text/csv,application/csv,text/plain,*/*",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": ISHARES_IWM_PRODUCT_URL,
+                "X-Requested-With": "XMLHttpRequest",
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/126.0 Safari/537.36"
+                ),
+            }
+            session = requests.Session()
+            try:
+                session.get(ISHARES_IWM_PRODUCT_URL, headers=headers, timeout=30)
+                response = None
+                last_error: Exception | None = None
+                for url in _iwm_holdings_document_urls():
+                    try:
+                        candidate = session.get(url, headers=headers, timeout=30)
+                        candidate.raise_for_status()
+                        _read_ishares_holdings_csv(candidate.text)
+                        response = candidate
+                        break
+                    except Exception as exc:
+                        last_error = exc
+                if response is None:
+                    raise RuntimeError(f"No iShares holdings CSV response found: {last_error}")
+            except requests.exceptions.SSLError:
+                session.get(ISHARES_IWM_PRODUCT_URL, headers=headers, timeout=30, verify=False)
+                response = None
+                last_error = None
+                for url in _iwm_holdings_document_urls():
+                    try:
+                        candidate = session.get(url, headers=headers, timeout=30, verify=False)
+                        candidate.raise_for_status()
+                        _read_ishares_holdings_csv(candidate.text)
+                        response = candidate
+                        break
+                    except Exception as exc:
+                        last_error = exc
+                if response is None:
+                    raise RuntimeError(f"No iShares holdings CSV response found: {last_error}")
+            response.raise_for_status()
+            table = _read_ishares_holdings_csv(response.text)
+            source = "iShares IWM holdings filtered to saved $500M+ universe"
+        except Exception as exc:
+            source_error = str(exc)
+            if IWM_HOLDINGS_CACHE_PATH.exists():
+                table = _read_ishares_holdings_csv(IWM_HOLDINGS_CACHE_PATH.read_text(encoding="utf-8-sig", errors="replace"))
+                source = f"Cached iShares IWM holdings filtered to saved $500M+ universe; live source unavailable: {exc}"
+            else:
+                table = pd.DataFrame()
+                source = f"iShares IWM holdings unavailable; Russell 2000 fallback disabled to avoid non-Russell tickers: {exc}"
 
     if table.empty or "Ticker" not in table.columns:
         tickers = []
@@ -625,15 +709,15 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
     )
 
 
-def load_index_universes(fallback_tickers: list[str]) -> tuple[list[IndexUniverse], list[str]]:
+def load_index_universes(fallback_tickers: list[str], refresh_constituents: bool = False) -> tuple[list[IndexUniverse], list[str]]:
     universes: list[IndexUniverse] = []
     errors: list[str] = []
     for loader in (_load_sp500_universe, _load_nasdaq100_universe, _load_dow_universe):
         try:
-            universes.append(loader())
+            universes.append(loader(refresh_constituents=refresh_constituents))
         except Exception as exc:
             errors.append(str(exc))
-    universes.append(_load_iwm_universe(fallback_tickers))
+    universes.append(_load_iwm_universe(fallback_tickers, refresh_constituents=refresh_constituents))
     return universes, errors
 
 
@@ -874,9 +958,13 @@ def _summarize_index(universe: IndexUniverse, price_data: dict[str, pd.DataFrame
     }
 
 
-def run_market_breadth_scan(fallback_tickers: list[str], max_tickers: int | None = None) -> dict[str, Any]:
+def run_market_breadth_scan(
+    fallback_tickers: list[str],
+    max_tickers: int | None = None,
+    refresh_constituents: bool = False,
+) -> dict[str, Any]:
     completed_date = latest_completed_us_session()
-    universes, universe_errors = load_index_universes(fallback_tickers)
+    universes, universe_errors = load_index_universes(fallback_tickers, refresh_constituents=refresh_constituents)
     if not universes:
         return {
             "completed_date": str(completed_date.date()),

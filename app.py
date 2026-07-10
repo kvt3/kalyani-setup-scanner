@@ -149,9 +149,16 @@ def cached_sector_top_gainers_scan(universe_signature: str, cache_version: int =
 
 
 @st.cache_data(ttl=14_400, show_spinner=False)
-def cached_market_breadth_scan(tickers: tuple[str, ...], cache_version: int = 14) -> dict[str, object]:
+def cached_market_breadth_scan(
+    tickers: tuple[str, ...],
+    refresh_constituents: bool = False,
+    cache_version: int = 15,
+) -> dict[str, object]:
     latest_market_breadth = importlib.reload(market_breadth)
-    return latest_market_breadth.run_market_breadth_scan(list(tickers))
+    return latest_market_breadth.run_market_breadth_scan(
+        list(tickers),
+        refresh_constituents=refresh_constituents,
+    )
 
 
 def load_manual_scan_status() -> dict[str, object]:
@@ -1800,7 +1807,7 @@ def _breadth_bar(label: str, value: object, status: object) -> str:
 
 
 def show_market_breadth_panel(tickers: list[str]) -> None:
-    breadth_ui_version = 15
+    breadth_ui_version = 16
     if st.session_state.get("market_breadth_ui_version") != breadth_ui_version:
         st.session_state.pop("market_breadth_summary", None)
         st.session_state["market_breadth_ui_version"] = breadth_ui_version
@@ -1811,11 +1818,23 @@ def show_market_breadth_panel(tickers: list[str]) -> None:
         "Russell 2000/IWM is filtered to the saved $500M+ universe. Includes advance/decline, new highs/lows, % above 20/50/200 SMA, and SMA crossover counts."
     )
 
-    st.caption("Auto-calculates on the latest completed U.S. session and caches for 4 hours. All four index panels are shown below.")
+    st.caption(
+        "Auto-calculates on the latest completed U.S. session and caches for 4 hours. "
+        "Constituent lists use saved/local lists unless Refresh Market Condition is clicked."
+    )
 
     if "market_breadth_summary" not in st.session_state:
-        with st.spinner("Calculating index breadth from constituents..."):
-            st.session_state["market_breadth_summary"] = cached_market_breadth_scan(tuple(tickers))
+        refresh_constituents = bool(st.session_state.pop("refresh_market_breadth_constituents", False))
+        spinner_text = (
+            "Refreshing index constituents and calculating breadth..."
+            if refresh_constituents
+            else "Calculating index breadth from saved constituents..."
+        )
+        with st.spinner(spinner_text):
+            st.session_state["market_breadth_summary"] = cached_market_breadth_scan(
+                tuple(tickers),
+                refresh_constituents,
+            )
 
     summary = st.session_state.get("market_breadth_summary", {})
     if isinstance(summary, dict) and "indexes" not in summary:
@@ -1836,6 +1855,25 @@ def show_market_breadth_panel(tickers: list[str]) -> None:
         if isinstance(errors, list) and errors:
             st.text("\n".join(str(error) for error in errors[:20]))
         return
+
+    stale_source_messages = []
+    for index_summary in index_rows:
+        if not isinstance(index_summary, dict):
+            continue
+        source = str(index_summary.get("source") or "")
+        source_lower = source.lower()
+        if "live source unavailable" in source_lower:
+            stale_source_messages.append(
+                f"{index_summary.get('proxy') or index_summary.get('label')}: live constituent list failed, using saved/old data. {source}"
+            )
+        elif "no cached" in source_lower or "unreadable" in source_lower:
+            stale_source_messages.append(
+                f"{index_summary.get('proxy') or index_summary.get('label')}: constituent list issue. {source}"
+            )
+    if stale_source_messages:
+        st.warning("Some index constituent lists could not be refreshed; saved/old data is being used where available.")
+        with st.expander("Constituent list fallback details", expanded=True):
+            st.text("\n".join(stale_source_messages[:20]))
 
     st.markdown(
         """
@@ -2340,8 +2378,13 @@ def show_market_condition_panel() -> None:
         cached_market_trend_scan.clear()
         cached_sector_etf_scan.clear()
         cached_sector_top_gainers_scan.clear()
+        cached_market_breadth_scan.clear()
+        st.session_state.pop("market_breadth_summary", None)
+        st.session_state["refresh_market_breadth_constituents"] = True
         st.rerun()
-    cache_col.caption("Cached for 15 minutes to avoid repeated Yahoo Finance calls on every Streamlit rerun.")
+    cache_col.caption(
+        "Market trend is cached for 15 minutes. Index breadth is cached for 4 hours and refreshes constituent lists only when this button is clicked."
+    )
 
     with st.spinner("Checking market condition from SPY, QQQ, DIA, and IWM..."):
         summary = cached_market_trend_scan()
