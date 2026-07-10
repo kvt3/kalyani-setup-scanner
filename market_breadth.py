@@ -15,6 +15,7 @@ ISHARES_IWM_HOLDINGS_URL = (
     "https://www.ishares.com/us/products/239710/ishares-russell-2000-etf/"
     "1467271812596.ajax?fileType=csv&fileName=IWM_holdings&dataType=fund"
 )
+ISHARES_IWM_PRODUCT_URL = "https://www.ishares.com/us/products/239710/ishares-russell-2000-etf"
 IWM_HOLDINGS_CACHE_PATH = DATA_DIR / "iwm_holdings_cache.csv"
 
 NASDAQ100_FALLBACK_TICKERS = [
@@ -268,17 +269,21 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
         headers = {
             "Accept": "text/csv,application/csv,text/plain,*/*",
             "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://www.ishares.com/us/products/239710/ishares-russell-2000-etf",
+            "Referer": ISHARES_IWM_PRODUCT_URL,
+            "X-Requested-With": "XMLHttpRequest",
             "User-Agent": (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/126.0 Safari/537.36"
             ),
         }
+        session = requests.Session()
         try:
-            response = requests.get(ISHARES_IWM_HOLDINGS_URL, headers=headers, timeout=30)
+            session.get(ISHARES_IWM_PRODUCT_URL, headers=headers, timeout=30)
+            response = session.get(ISHARES_IWM_HOLDINGS_URL, headers=headers, timeout=30)
         except requests.exceptions.SSLError:
-            response = requests.get(ISHARES_IWM_HOLDINGS_URL, headers=headers, timeout=30, verify=False)
+            session.get(ISHARES_IWM_PRODUCT_URL, headers=headers, timeout=30, verify=False)
+            response = session.get(ISHARES_IWM_HOLDINGS_URL, headers=headers, timeout=30, verify=False)
         response.raise_for_status()
         table = _read_ishares_holdings_csv(response.text)
         DATA_DIR.mkdir(parents=True, exist_ok=True)
