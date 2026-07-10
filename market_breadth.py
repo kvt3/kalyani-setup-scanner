@@ -15,6 +15,104 @@ ISHARES_IWM_HOLDINGS_URL = (
     "1467271812596.ajax?fileType=csv&fileName=IWM_holdings&dataType=fund"
 )
 
+NASDAQ100_FALLBACK_TICKERS = [
+    "AAPL",
+    "ABNB",
+    "ADBE",
+    "ADI",
+    "ADP",
+    "ADSK",
+    "AEP",
+    "ALNY",
+    "AMAT",
+    "AMD",
+    "AMGN",
+    "AMZN",
+    "APP",
+    "ARM",
+    "ASML",
+    "AVGO",
+    "AXON",
+    "BKR",
+    "CCEP",
+    "CHTR",
+    "CMCSA",
+    "COST",
+    "CPRT",
+    "CRWD",
+    "CSCO",
+    "CSGP",
+    "CSX",
+    "CTAS",
+    "DASH",
+    "DDOG",
+    "DXCM",
+    "EA",
+    "EXC",
+    "FANG",
+    "FAST",
+    "FER",
+    "FTNT",
+    "GEHC",
+    "GILD",
+    "GOOG",
+    "GOOGL",
+    "HON",
+    "IDXX",
+    "INSM",
+    "INTC",
+    "INTU",
+    "ISRG",
+    "KDP",
+    "KHC",
+    "KLAC",
+    "LIN",
+    "LRCX",
+    "MAR",
+    "MCHP",
+    "MDLZ",
+    "MELI",
+    "META",
+    "MNST",
+    "MRVL",
+    "MSFT",
+    "MSTR",
+    "MU",
+    "NFLX",
+    "NVDA",
+    "NXPI",
+    "ODFL",
+    "ORLY",
+    "PANW",
+    "PAYX",
+    "PCAR",
+    "PDD",
+    "PEP",
+    "PLTR",
+    "PYPL",
+    "QCOM",
+    "REGN",
+    "ROP",
+    "ROST",
+    "SBUX",
+    "SNDK",
+    "SNPS",
+    "STX",
+    "TEAM",
+    "TMUS",
+    "TSLA",
+    "TTD",
+    "TTWO",
+    "TXN",
+    "VRSK",
+    "VRTX",
+    "WBD",
+    "WDAY",
+    "WMT",
+    "XEL",
+    "ZS",
+]
+
 
 @dataclass(frozen=True)
 class IndexUniverse:
@@ -83,21 +181,42 @@ def _load_sp500_universe() -> IndexUniverse:
 
 
 def _load_nasdaq100_universe() -> IndexUniverse:
-    table = _read_html_table("https://en.wikipedia.org/wiki/Nasdaq-100", ("Ticker",))
-    tickers = [_normalize_symbol(symbol) for symbol in table["Ticker"]]
+    symbol_col = "Ticker"
+    source = "Wikipedia Nasdaq 100 constituents"
+    try:
+        table = _read_html_table("https://en.wikipedia.org/wiki/Nasdaq-100", ("Ticker",))
+    except Exception as ticker_exc:
+        try:
+            table = _read_html_table("https://en.wikipedia.org/wiki/Nasdaq-100", ("Symbol",))
+            symbol_col = "Symbol"
+        except Exception as symbol_exc:
+            tickers = NASDAQ100_FALLBACK_TICKERS
+            return IndexUniverse(
+                key="nasdaq100",
+                label="QQQ / Nasdaq 100",
+                proxy="QQQ",
+                tickers=sorted({ticker for ticker in tickers if ticker}),
+                sectors={ticker: "Nasdaq 100 fallback" for ticker in tickers if ticker},
+                source=(
+                    "Fallback QQQ/Nasdaq 100 tickers; live source unavailable: "
+                    f"{ticker_exc}; {symbol_exc}"
+                ),
+            )
+
+    tickers = [_normalize_symbol(symbol) for symbol in table[symbol_col]]
     sector_col = "GICS Sector" if "GICS Sector" in table.columns else "Sector" if "Sector" in table.columns else ""
     sectors = {
-        _normalize_symbol(row["Ticker"]): str(row.get(sector_col) or "Unknown")
+        _normalize_symbol(row[symbol_col]): str(row.get(sector_col) or "Unknown")
         for _, row in table.iterrows()
-        if _normalize_symbol(row["Ticker"])
+        if _normalize_symbol(row[symbol_col])
     }
     return IndexUniverse(
         key="nasdaq100",
-        label="Nasdaq 100",
+        label="QQQ / Nasdaq 100",
         proxy="QQQ",
         tickers=sorted({ticker for ticker in tickers if ticker}),
         sectors=sectors,
-        source="Wikipedia Nasdaq 100 constituents",
+        source=source,
     )
 
 

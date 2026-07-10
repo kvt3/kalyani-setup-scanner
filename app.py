@@ -149,7 +149,7 @@ def cached_sector_top_gainers_scan(universe_signature: str, cache_version: int =
 
 
 @st.cache_data(ttl=14_400, show_spinner=False)
-def cached_market_breadth_scan(tickers: tuple[str, ...], cache_version: int = 6) -> dict[str, object]:
+def cached_market_breadth_scan(tickers: tuple[str, ...], cache_version: int = 7) -> dict[str, object]:
     latest_market_breadth = importlib.reload(market_breadth)
     return latest_market_breadth.run_market_breadth_scan(list(tickers))
 
@@ -1800,14 +1800,14 @@ def _breadth_bar(label: str, value: object, status: object) -> str:
 
 
 def show_market_breadth_panel(tickers: list[str]) -> None:
-    breadth_ui_version = 7
+    breadth_ui_version = 8
     if st.session_state.get("market_breadth_ui_version") != breadth_ui_version:
         st.session_state.pop("market_breadth_summary", None)
         st.session_state["market_breadth_ui_version"] = breadth_ui_version
 
     st.markdown("**Index Breadth**")
     st.caption(
-        "Calculates breadth inside each index: S&P 500, Nasdaq 100, Dow 30, and Russell 2000/IWM when holdings are available. "
+        "Calculates breadth inside each index: S&P 500, QQQ / Nasdaq 100, Dow 30, and Russell 2000/IWM when holdings are available. "
         "Includes advance/decline, new highs/lows, % above 20/50/200 SMA, and SMA crossover counts."
     )
 
