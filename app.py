@@ -131,7 +131,7 @@ MANUAL_SCAN_LOG_PATH = DATA_DIR / "manual_scan_background.log"
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def cached_market_trend_scan(cache_version: int = 5) -> dict[str, object]:
+def cached_market_trend_scan(cache_version: int = 6) -> dict[str, object]:
     latest_market_trend = importlib.reload(market_trend)
     return latest_market_trend.run_market_trend_scanner()
 
@@ -2324,7 +2324,7 @@ def show_market_condition_panel() -> None:
     st.header("Market Condition")
     st.caption("Uses SPY, QQQ, DIA, and IWM with completed U.S. daily candles only.")
 
-    market_condition_ui_version = 3
+    market_condition_ui_version = 4
     if st.session_state.get("market_condition_ui_version") != market_condition_ui_version:
         cached_market_trend_scan.clear()
         cached_sector_etf_scan.clear()

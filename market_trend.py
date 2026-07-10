@@ -79,12 +79,31 @@ def remove_unfinished_daily_candle(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def download_single_ticker_data(ticker: str) -> pd.DataFrame:
-    df = yf.Ticker(ticker).history(period=PERIOD, interval=INTERVAL, auto_adjust=False)
+    try:
+        df = yf.Ticker(ticker).history(period=PERIOD, interval=INTERVAL, auto_adjust=False)
+    except Exception as history_exc:
+        df = yf.download(
+            ticker,
+            period=PERIOD,
+            interval=INTERVAL,
+            auto_adjust=False,
+            prepost=False,
+            progress=False,
+            threads=False,
+        )
+        if df.empty:
+            raise history_exc
+
     if df.empty:
         raise ValueError(f"No data downloaded for {ticker}")
 
     if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
+        if ticker in set(df.columns.get_level_values(0)):
+            df = df[ticker]
+        elif ticker in set(df.columns.get_level_values(1)):
+            df = df.xs(ticker, axis=1, level=1)
+        else:
+            df.columns = df.columns.get_level_values(0)
 
     required_columns = ["Open", "High", "Low", "Close", "Volume"]
     missing = [column for column in required_columns if column not in df.columns]
