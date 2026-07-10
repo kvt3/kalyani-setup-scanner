@@ -1912,6 +1912,9 @@ def show_market_breadth_panel(tickers: list[str]) -> None:
                             <tr><td>20/50 SMA cross today</td><td>Bullish {int(index_summary.get('bull_cross_20_50') or 0):,} / Bearish {int(index_summary.get('bear_cross_20_50') or 0):,}</td></tr>
                             <tr><td>50/200 SMA cross today</td><td>Bullish {int(index_summary.get('bull_cross_50_200') or 0):,} / Bearish {int(index_summary.get('bear_cross_50_200') or 0):,}</td></tr>
                         </table>
+                        <div class="mb-note">
+                            <b>New highs:</b> {escape(', '.join(str(t) for t in (index_summary.get('new_high_tickers') or [])[:50]) or 'None')}
+                        </div>
                     </div>
                     <div class="mb-counts">
                         <div class="mb-count"><span>Advancers</span><b style="color:#166534;">{advancers:,}</b></div>
