@@ -326,8 +326,6 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
                 raise RuntimeError(f"No iShares holdings CSV response found: {last_error}")
         response.raise_for_status()
         table = _read_ishares_holdings_csv(response.text)
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        table.to_csv(IWM_HOLDINGS_CACHE_PATH, index=False)
         source = "iShares IWM holdings filtered to saved $500M+ universe"
     except Exception as exc:
         source_error = str(exc)
@@ -353,6 +351,26 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
             for _, row in table.iterrows()
             if _normalize_symbol(row["Ticker"])
         }
+
+    if not tickers and IWM_HOLDINGS_CACHE_PATH.exists() and not source.startswith("Cached iShares"):
+        table = _read_ishares_holdings_csv(IWM_HOLDINGS_CACHE_PATH.read_text(encoding="utf-8-sig", errors="replace"))
+        table = table[table.get("Asset Class", "").astype(str).str.upper().eq("EQUITY")] if "Asset Class" in table.columns else table
+        table["_normalized_ticker"] = table["Ticker"].map(_normalize_symbol)
+        if eligible_tickers:
+            table = table[table["_normalized_ticker"].isin(eligible_tickers)]
+        tickers = [ticker for ticker in table["_normalized_ticker"] if ticker]
+        sector_col = "Sector" if "Sector" in table.columns else ""
+        sectors = {
+            _normalize_symbol(row["Ticker"]): str(row.get(sector_col) or "Unknown")
+            for _, row in table.iterrows()
+            if _normalize_symbol(row["Ticker"])
+        }
+        if tickers:
+            source = "Cached iShares IWM holdings filtered to saved $500M+ universe; live source had no matching $500M+ tickers"
+
+    if tickers and source == "iShares IWM holdings filtered to saved $500M+ universe":
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        table.drop(columns=["_normalized_ticker"], errors="ignore").to_csv(IWM_HOLDINGS_CACHE_PATH, index=False)
 
     if source_error and not tickers:
         source = f"{source}; no cached IWM holdings available"
