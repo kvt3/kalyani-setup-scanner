@@ -149,7 +149,7 @@ def cached_sector_top_gainers_scan(universe_signature: str, cache_version: int =
 
 
 @st.cache_data(ttl=14_400, show_spinner=False)
-def cached_market_breadth_scan(tickers: tuple[str, ...], cache_version: int = 8) -> dict[str, object]:
+def cached_market_breadth_scan(tickers: tuple[str, ...], cache_version: int = 9) -> dict[str, object]:
     latest_market_breadth = importlib.reload(market_breadth)
     return latest_market_breadth.run_market_breadth_scan(list(tickers))
 
@@ -1800,7 +1800,7 @@ def _breadth_bar(label: str, value: object, status: object) -> str:
 
 
 def show_market_breadth_panel(tickers: list[str]) -> None:
-    breadth_ui_version = 9
+    breadth_ui_version = 10
     if st.session_state.get("market_breadth_ui_version") != breadth_ui_version:
         st.session_state.pop("market_breadth_summary", None)
         st.session_state["market_breadth_ui_version"] = breadth_ui_version

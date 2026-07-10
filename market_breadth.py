@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 import requests
 
+from config import DATA_DIR
 from data_loader import download_ohlcv, latest_completed_us_session
 
 
@@ -14,6 +15,7 @@ ISHARES_IWM_HOLDINGS_URL = (
     "https://www.ishares.com/us/products/239710/ishares-russell-2000-etf/"
     "1467271812596.ajax?fileType=csv&fileName=IWM_holdings&dataType=fund"
 )
+IWM_HOLDINGS_CACHE_PATH = DATA_DIR / "iwm_holdings_cache.csv"
 
 NASDAQ100_FALLBACK_TICKERS = [
     "AAPL",
@@ -242,6 +244,7 @@ def _load_dow_universe() -> IndexUniverse:
 def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
     eligible_tickers = {_normalize_symbol(ticker) for ticker in fallback_tickers}
     eligible_tickers.discard("")
+    source_error = ""
     try:
         headers = {
             "User-Agent": (
@@ -258,6 +261,22 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
         header_index = next(index for index, line in enumerate(lines) if line.startswith("Ticker,"))
         csv_text = "\n".join(lines[header_index:])
         table = pd.read_csv(StringIO(csv_text))
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        table.to_csv(IWM_HOLDINGS_CACHE_PATH, index=False)
+        source = "iShares IWM holdings filtered to saved $500M+ universe"
+    except Exception as exc:
+        source_error = str(exc)
+        if IWM_HOLDINGS_CACHE_PATH.exists():
+            table = pd.read_csv(IWM_HOLDINGS_CACHE_PATH)
+            source = f"Cached iShares IWM holdings filtered to saved $500M+ universe; live source unavailable: {exc}"
+        else:
+            table = pd.DataFrame()
+            source = f"iShares IWM holdings unavailable; Russell 2000 fallback disabled to avoid non-Russell tickers: {exc}"
+
+    if table.empty or "Ticker" not in table.columns:
+        tickers = []
+        sectors = {}
+    else:
         table = table[table.get("Asset Class", "").astype(str).str.upper().eq("EQUITY")] if "Asset Class" in table.columns else table
         table["_normalized_ticker"] = table["Ticker"].map(_normalize_symbol)
         if eligible_tickers:
@@ -269,11 +288,9 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
             for _, row in table.iterrows()
             if _normalize_symbol(row["Ticker"])
         }
-        source = "iShares IWM holdings filtered to saved $500M+ universe"
-    except Exception as exc:
-        tickers = []
-        sectors = {}
-        source = f"iShares IWM holdings unavailable; Russell 2000 fallback disabled to avoid non-Russell tickers: {exc}"
+
+    if source_error and not tickers:
+        source = f"{source}; no cached IWM holdings available"
 
     return IndexUniverse(
         key="russell2000",
@@ -352,6 +369,7 @@ def _summarize_sector_breadth(records: pd.DataFrame, sectors: dict[str, str]) ->
 def _summarize_index(universe: IndexUniverse, price_data: dict[str, pd.DataFrame]) -> dict[str, Any]:
     records: list[dict[str, Any]] = []
     ad_line_parts: list[pd.Series] = []
+    available_price_tickers = sum(1 for ticker in universe.tickers if ticker in price_data)
 
     for ticker in universe.tickers:
         frame = price_data.get(ticker)
@@ -414,14 +432,27 @@ def _summarize_index(universe: IndexUniverse, price_data: dict[str, pd.DataFrame
         ad_line_parts.append(direction.rename(ticker).tail(40))
 
     if not records:
+        if not universe.tickers:
+            error = f"No constituents loaded. Source: {universe.source}"
+        elif available_price_tickers == 0:
+            error = (
+                "No price history downloaded for these constituents. "
+                f"Source: {universe.source}"
+            )
+        else:
+            error = (
+                f"{available_price_tickers:,} constituents had downloaded data, "
+                "but none had enough clean OHLCV history for breadth."
+            )
         return {
             "key": universe.key,
             "label": universe.label,
             "proxy": universe.proxy,
             "source": universe.source,
             "constituents": len(universe.tickers),
+            "downloaded_tickers": available_price_tickers,
             "processed_tickers": 0,
-            "error": "No constituents had enough OHLCV data.",
+            "error": error,
         }
 
     breadth = pd.DataFrame(records)
@@ -455,6 +486,7 @@ def _summarize_index(universe: IndexUniverse, price_data: dict[str, pd.DataFrame
         "proxy": universe.proxy,
         "source": universe.source,
         "constituents": len(universe.tickers),
+        "downloaded_tickers": available_price_tickers,
         "processed_tickers": processed,
         "date": str(breadth["date"].max()),
         "breadth_label": label,
