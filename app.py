@@ -152,7 +152,7 @@ def cached_sector_top_gainers_scan(universe_signature: str, cache_version: int =
 def cached_market_breadth_scan(
     tickers: tuple[str, ...],
     refresh_constituents: bool = False,
-    cache_version: int = 15,
+    cache_version: int = 16,
 ) -> dict[str, object]:
     latest_market_breadth = importlib.reload(market_breadth)
     return latest_market_breadth.run_market_breadth_scan(
@@ -1807,7 +1807,7 @@ def _breadth_bar(label: str, value: object, status: object) -> str:
 
 
 def show_market_breadth_panel(tickers: list[str]) -> None:
-    breadth_ui_version = 16
+    breadth_ui_version = 17
     if st.session_state.get("market_breadth_ui_version") != breadth_ui_version:
         st.session_state.pop("market_breadth_summary", None)
         st.session_state["market_breadth_ui_version"] = breadth_ui_version
@@ -2531,10 +2531,12 @@ def show_market_condition_panel() -> None:
         show_sector_top_gainers_panel()
 
         breadth_tickers = load_eligible_ticker_symbols(DB_PATH)
-        if breadth_tickers:
-            show_market_breadth_panel(breadth_tickers)
-        else:
-            st.info("Market breadth needs the saved $500M+ ticker universe. Download/store that universe first.")
+        if not breadth_tickers:
+            st.warning(
+                "Saved $500M+ ticker universe is unavailable on this server. "
+                "Index breadth will use cached index constituents; IWM will use full cached iShares holdings without the $500M+ filter."
+            )
+        show_market_breadth_panel(breadth_tickers)
 
         st.markdown("**How to read ADX, volume, price momentum, and breadth**")
         guide_cols = st.columns(4)

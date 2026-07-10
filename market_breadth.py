@@ -573,12 +573,17 @@ def _load_dow_universe(refresh_constituents: bool = False) -> IndexUniverse:
 def _load_iwm_universe(fallback_tickers: list[str], refresh_constituents: bool = False) -> IndexUniverse:
     eligible_tickers = {_normalize_symbol(ticker) for ticker in fallback_tickers}
     eligible_tickers.discard("")
+    filter_note = (
+        "filtered to saved $500M+ universe"
+        if eligible_tickers
+        else "using full holdings because saved $500M+ universe is unavailable"
+    )
     source_error = ""
     if not refresh_constituents:
         if IWM_HOLDINGS_CACHE_PATH.exists():
             try:
                 table = _read_ishares_holdings_csv(IWM_HOLDINGS_CACHE_PATH.read_text(encoding="utf-8-sig", errors="replace"))
-                source = "Cached iShares IWM holdings filtered to saved $500M+ universe"
+                source = f"Cached iShares IWM holdings {filter_note}"
             except Exception as exc:
                 source_error = str(exc)
                 table = pd.DataFrame()
@@ -632,12 +637,12 @@ def _load_iwm_universe(fallback_tickers: list[str], refresh_constituents: bool =
                     raise RuntimeError(f"No iShares holdings CSV response found: {last_error}")
             response.raise_for_status()
             table = _read_ishares_holdings_csv(response.text)
-            source = "iShares IWM holdings filtered to saved $500M+ universe"
+            source = f"iShares IWM holdings {filter_note}"
         except Exception as exc:
             source_error = str(exc)
             if IWM_HOLDINGS_CACHE_PATH.exists():
                 table = _read_ishares_holdings_csv(IWM_HOLDINGS_CACHE_PATH.read_text(encoding="utf-8-sig", errors="replace"))
-                source = f"Cached iShares IWM holdings filtered to saved $500M+ universe; live source unavailable: {exc}"
+                source = f"Cached iShares IWM holdings {filter_note}; live source unavailable: {exc}"
             else:
                 table = pd.DataFrame()
                 source = f"iShares IWM holdings unavailable; Russell 2000 fallback disabled to avoid non-Russell tickers: {exc}"
@@ -649,6 +654,7 @@ def _load_iwm_universe(fallback_tickers: list[str], refresh_constituents: bool =
         names = {}
     else:
         table = table[table.get("Asset Class", "").astype(str).str.upper().eq("EQUITY")] if "Asset Class" in table.columns else table
+        unfiltered_table = table.copy()
         table["_normalized_ticker"] = table["Ticker"].map(_normalize_symbol)
         if eligible_tickers:
             table = table[table["_normalized_ticker"].isin(eligible_tickers)]
@@ -666,6 +672,26 @@ def _load_iwm_universe(fallback_tickers: list[str], refresh_constituents: bool =
             for _, row in table.iterrows()
             if _normalize_symbol(row["Ticker"])
         }
+        if not tickers and eligible_tickers:
+            table = unfiltered_table.drop(columns=["_normalized_ticker"], errors="ignore").copy()
+            table["_normalized_ticker"] = table["Ticker"].map(_normalize_symbol)
+            tickers = [ticker for ticker in table["_normalized_ticker"] if ticker]
+            sectors = {
+                _normalize_symbol(row["Ticker"]): str(row.get(sector_col) or "Unknown")
+                for _, row in table.iterrows()
+                if _normalize_symbol(row["Ticker"])
+            }
+            industries = sectors.copy()
+            names = {
+                _normalize_symbol(row["Ticker"]): str(row.get(name_col) or "")
+                for _, row in table.iterrows()
+                if _normalize_symbol(row["Ticker"])
+            }
+            if tickers:
+                source = (
+                    f"{source}; saved $500M+ universe had no matching IWM tickers, "
+                    "using full iShares holdings instead"
+                )
 
     if not tickers and IWM_HOLDINGS_CACHE_PATH.exists() and not source.startswith("Cached iShares"):
         table = _read_ishares_holdings_csv(IWM_HOLDINGS_CACHE_PATH.read_text(encoding="utf-8-sig", errors="replace"))
