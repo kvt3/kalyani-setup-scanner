@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import time
+from io import StringIO
 from typing import Any
 
 import numpy as np
@@ -58,6 +59,7 @@ US_MARKET_CLOSE_TIME = time(16, 0)
 MARKET_CLOSE_BUFFER_MINUTES = 15
 SECTOR_PROFILE_CACHE_PATH = DATA_DIR / "sector_profile_cache.json"
 _FMP_PROFILE_RATE_LIMITED = False
+STOOQ_DAILY_URL = "https://stooq.com/q/d/l/"
 
 
 def remove_unfinished_daily_candle(df: pd.DataFrame) -> pd.DataFrame:
@@ -78,25 +80,7 @@ def remove_unfinished_daily_candle(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def download_single_ticker_data(ticker: str) -> pd.DataFrame:
-    try:
-        df = yf.Ticker(ticker).history(period=PERIOD, interval=INTERVAL, auto_adjust=False)
-    except Exception as history_exc:
-        df = yf.download(
-            ticker,
-            period=PERIOD,
-            interval=INTERVAL,
-            auto_adjust=False,
-            prepost=False,
-            progress=False,
-            threads=False,
-        )
-        if df.empty:
-            raise history_exc
-
-    if df.empty:
-        raise ValueError(f"No data downloaded for {ticker}")
-
+def _normalize_ohlcv_frame(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     if isinstance(df.columns, pd.MultiIndex):
         if ticker in set(df.columns.get_level_values(0)):
             df = df[ticker]
@@ -104,6 +88,9 @@ def download_single_ticker_data(ticker: str) -> pd.DataFrame:
             df = df.xs(ticker, axis=1, level=1)
         else:
             df.columns = df.columns.get_level_values(0)
+
+    if df.empty:
+        raise ValueError(f"No data downloaded for {ticker}")
 
     required_columns = ["Open", "High", "Low", "Close", "Volume"]
     missing = [column for column in required_columns if column not in df.columns]
@@ -120,6 +107,80 @@ def download_single_ticker_data(ticker: str) -> pd.DataFrame:
     if len(df) < SMA_200_PERIOD + 20:
         raise ValueError(f"Not enough data for {ticker}")
     return df
+
+
+def _download_yahoo_ticker_data(ticker: str) -> pd.DataFrame:
+    history_error: Exception | None = None
+    try:
+        df = yf.Ticker(ticker).history(period=PERIOD, interval=INTERVAL, auto_adjust=False)
+        if not df.empty:
+            return _normalize_ohlcv_frame(df, ticker)
+    except Exception as exc:
+        history_error = exc
+
+    try:
+        df = yf.download(
+            ticker,
+            period=PERIOD,
+            interval=INTERVAL,
+            auto_adjust=False,
+            prepost=False,
+            progress=False,
+            threads=False,
+        )
+        if not df.empty:
+            return _normalize_ohlcv_frame(df, ticker)
+    except Exception as exc:
+        if history_error is not None:
+            raise RuntimeError(f"{history_error}; {exc}") from exc
+        raise
+
+    if history_error is not None:
+        raise history_error
+    raise ValueError(f"No Yahoo data downloaded for {ticker}")
+
+
+def _download_stooq_ticker_data(ticker: str) -> pd.DataFrame:
+    completed_date = latest_completed_us_session()
+    start_date = completed_date - pd.DateOffset(years=3, months=2)
+    response = requests.get(
+        STOOQ_DAILY_URL,
+        params={
+            "s": f"{ticker.lower()}.us",
+            "i": "d",
+            "d1": start_date.strftime("%Y%m%d"),
+            "d2": completed_date.strftime("%Y%m%d"),
+        },
+        headers={"User-Agent": "KalyaniSetupScanner/1.0 Python requests"},
+        timeout=20,
+    )
+    response.raise_for_status()
+    text = response.text.strip()
+    if not text or "No data" in text:
+        raise ValueError(f"No Stooq data downloaded for {ticker}")
+
+    df = pd.read_csv(StringIO(text))
+    if "Date" not in df.columns:
+        raise ValueError(f"Stooq response missing Date column for {ticker}")
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    df = df.dropna(subset=["Date"]).set_index("Date").sort_index()
+    return _normalize_ohlcv_frame(df, ticker)
+
+
+def download_single_ticker_data(ticker: str) -> pd.DataFrame:
+    try:
+        df = _download_yahoo_ticker_data(ticker)
+        df.attrs["price_source"] = "Yahoo"
+        return df
+    except Exception as yahoo_exc:
+        try:
+            df = _download_stooq_ticker_data(ticker)
+            df.attrs["price_source"] = "Stooq fallback"
+            return df
+        except Exception as stooq_exc:
+            raise RuntimeError(
+                f"Yahoo unavailable ({yahoo_exc}); Stooq fallback unavailable ({stooq_exc})"
+            ) from stooq_exc
 
 
 def add_moving_averages(df: pd.DataFrame) -> pd.DataFrame:

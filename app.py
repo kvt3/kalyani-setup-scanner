@@ -131,13 +131,13 @@ MANUAL_SCAN_LOG_PATH = DATA_DIR / "manual_scan_background.log"
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def cached_market_trend_scan(cache_version: int = 6) -> dict[str, object]:
+def cached_market_trend_scan(cache_version: int = 7) -> dict[str, object]:
     latest_market_trend = importlib.reload(market_trend)
     return latest_market_trend.run_market_trend_scanner()
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def cached_sector_etf_scan(cache_version: int = 1) -> dict[str, object]:
+def cached_sector_etf_scan(cache_version: int = 2) -> dict[str, object]:
     latest_market_trend = importlib.reload(market_trend)
     return latest_market_trend.run_sector_etf_scan()
 
