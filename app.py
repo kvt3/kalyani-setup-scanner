@@ -149,7 +149,7 @@ def cached_sector_top_gainers_scan(universe_signature: str, cache_version: int =
 
 
 @st.cache_data(ttl=14_400, show_spinner=False)
-def cached_market_breadth_scan(tickers: tuple[str, ...], cache_version: int = 12) -> dict[str, object]:
+def cached_market_breadth_scan(tickers: tuple[str, ...], cache_version: int = 13) -> dict[str, object]:
     latest_market_breadth = importlib.reload(market_breadth)
     return latest_market_breadth.run_market_breadth_scan(list(tickers))
 
@@ -1800,7 +1800,7 @@ def _breadth_bar(label: str, value: object, status: object) -> str:
 
 
 def show_market_breadth_panel(tickers: list[str]) -> None:
-    breadth_ui_version = 13
+    breadth_ui_version = 14
     if st.session_state.get("market_breadth_ui_version") != breadth_ui_version:
         st.session_state.pop("market_breadth_summary", None)
         st.session_state["market_breadth_ui_version"] = breadth_ui_version
@@ -1934,6 +1934,11 @@ def show_market_breadth_panel(tickers: list[str]) -> None:
         if isinstance(sector_rows, list) and sector_rows:
             with st.expander(f"{proxy} sector advancing / declining", expanded=False):
                 st.dataframe(pd.DataFrame(sector_rows), width="stretch", hide_index=True)
+
+        new_high_rows = index_summary.get("new_high_rows", [])
+        if isinstance(new_high_rows, list) and new_high_rows:
+            with st.expander(f"{proxy} new 52-week highs detail", expanded=True):
+                st.dataframe(pd.DataFrame(new_high_rows), width="stretch", hide_index=True)
 
         ad_line_rows = index_summary.get("ad_line_rows", [])
         if isinstance(ad_line_rows, list) and ad_line_rows:

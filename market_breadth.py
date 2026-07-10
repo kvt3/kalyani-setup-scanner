@@ -129,6 +129,8 @@ class IndexUniverse:
     proxy: str
     tickers: list[str]
     sectors: dict[str, str]
+    industries: dict[str, str]
+    names: dict[str, str]
     source: str
 
 
@@ -203,8 +205,20 @@ def _load_sp500_universe() -> IndexUniverse:
     table = _read_html_table("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", ("Symbol",))
     tickers = [_normalize_symbol(symbol) for symbol in table["Symbol"]]
     sector_col = "GICS Sector" if "GICS Sector" in table.columns else ""
+    industry_col = "GICS Sub-Industry" if "GICS Sub-Industry" in table.columns else ""
+    name_col = "Security" if "Security" in table.columns else ""
     sectors = {
         _normalize_symbol(row["Symbol"]): str(row.get(sector_col) or "Unknown")
+        for _, row in table.iterrows()
+        if _normalize_symbol(row["Symbol"])
+    }
+    industries = {
+        _normalize_symbol(row["Symbol"]): str(row.get(industry_col) or "")
+        for _, row in table.iterrows()
+        if _normalize_symbol(row["Symbol"])
+    }
+    names = {
+        _normalize_symbol(row["Symbol"]): str(row.get(name_col) or "")
         for _, row in table.iterrows()
         if _normalize_symbol(row["Symbol"])
     }
@@ -214,6 +228,8 @@ def _load_sp500_universe() -> IndexUniverse:
         proxy="SPY",
         tickers=sorted({ticker for ticker in tickers if ticker}),
         sectors=sectors,
+        industries=industries,
+        names=names,
         source="Wikipedia S&P 500 constituents",
     )
 
@@ -235,6 +251,8 @@ def _load_nasdaq100_universe() -> IndexUniverse:
                 proxy="QQQ",
                 tickers=sorted({ticker for ticker in tickers if ticker}),
                 sectors={ticker: "Nasdaq 100 fallback" for ticker in tickers if ticker},
+                industries={ticker: "" for ticker in tickers if ticker},
+                names={ticker: "" for ticker in tickers if ticker},
                 source=(
                     "Fallback QQQ/Nasdaq 100 tickers; live source unavailable: "
                     f"{ticker_exc}; {symbol_exc}"
@@ -243,8 +261,20 @@ def _load_nasdaq100_universe() -> IndexUniverse:
 
     tickers = [_normalize_symbol(symbol) for symbol in table[symbol_col]]
     sector_col = "GICS Sector" if "GICS Sector" in table.columns else "Sector" if "Sector" in table.columns else ""
+    industry_col = "GICS Sub-Industry" if "GICS Sub-Industry" in table.columns else "Sub-Industry" if "Sub-Industry" in table.columns else ""
+    name_col = "Company" if "Company" in table.columns else "Security" if "Security" in table.columns else "Name" if "Name" in table.columns else ""
     sectors = {
         _normalize_symbol(row[symbol_col]): str(row.get(sector_col) or "Unknown")
+        for _, row in table.iterrows()
+        if _normalize_symbol(row[symbol_col])
+    }
+    industries = {
+        _normalize_symbol(row[symbol_col]): str(row.get(industry_col) or "")
+        for _, row in table.iterrows()
+        if _normalize_symbol(row[symbol_col])
+    }
+    names = {
+        _normalize_symbol(row[symbol_col]): str(row.get(name_col) or "")
         for _, row in table.iterrows()
         if _normalize_symbol(row[symbol_col])
     }
@@ -254,6 +284,8 @@ def _load_nasdaq100_universe() -> IndexUniverse:
         proxy="QQQ",
         tickers=sorted({ticker for ticker in tickers if ticker}),
         sectors=sectors,
+        industries=industries,
+        names=names,
         source=source,
     )
 
@@ -262,8 +294,14 @@ def _load_dow_universe() -> IndexUniverse:
     table = _read_html_table("https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average", ("Symbol",))
     tickers = [_normalize_symbol(symbol) for symbol in table["Symbol"]]
     sector_col = "Industry" if "Industry" in table.columns else ""
+    name_col = "Company" if "Company" in table.columns else ""
     sectors = {
         _normalize_symbol(row["Symbol"]): str(row.get(sector_col) or "Unknown")
+        for _, row in table.iterrows()
+        if _normalize_symbol(row["Symbol"])
+    }
+    names = {
+        _normalize_symbol(row["Symbol"]): str(row.get(name_col) or "")
         for _, row in table.iterrows()
         if _normalize_symbol(row["Symbol"])
     }
@@ -273,6 +311,8 @@ def _load_dow_universe() -> IndexUniverse:
         proxy="DIA",
         tickers=sorted({ticker for ticker in tickers if ticker}),
         sectors=sectors,
+        industries=sectors,
+        names=names,
         source="Wikipedia Dow Jones Industrial Average constituents",
     )
 
@@ -339,6 +379,8 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
     if table.empty or "Ticker" not in table.columns:
         tickers = []
         sectors = {}
+        industries = {}
+        names = {}
     else:
         table = table[table.get("Asset Class", "").astype(str).str.upper().eq("EQUITY")] if "Asset Class" in table.columns else table
         table["_normalized_ticker"] = table["Ticker"].map(_normalize_symbol)
@@ -348,6 +390,13 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
         sector_col = "Sector" if "Sector" in table.columns else ""
         sectors = {
             _normalize_symbol(row["Ticker"]): str(row.get(sector_col) or "Unknown")
+            for _, row in table.iterrows()
+            if _normalize_symbol(row["Ticker"])
+        }
+        industries = sectors.copy()
+        name_col = "Name" if "Name" in table.columns else ""
+        names = {
+            _normalize_symbol(row["Ticker"]): str(row.get(name_col) or "")
             for _, row in table.iterrows()
             if _normalize_symbol(row["Ticker"])
         }
@@ -362,6 +411,13 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
         sector_col = "Sector" if "Sector" in table.columns else ""
         sectors = {
             _normalize_symbol(row["Ticker"]): str(row.get(sector_col) or "Unknown")
+            for _, row in table.iterrows()
+            if _normalize_symbol(row["Ticker"])
+        }
+        industries = sectors.copy()
+        name_col = "Name" if "Name" in table.columns else ""
+        names = {
+            _normalize_symbol(row["Ticker"]): str(row.get(name_col) or "")
             for _, row in table.iterrows()
             if _normalize_symbol(row["Ticker"])
         }
@@ -381,6 +437,8 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
         proxy="IWM",
         tickers=sorted({ticker for ticker in tickers if ticker}),
         sectors=sectors,
+        industries=industries,
+        names=names,
         source=source,
     )
 
@@ -492,11 +550,17 @@ def _summarize_index(universe: IndexUniverse, price_data: dict[str, pd.DataFrame
             {
                 "ticker": ticker,
                 "date": latest.index[-1].date(),
+                "name": universe.names.get(ticker, ""),
+                "sector": universe.sectors.get(ticker, "Unknown"),
+                "industry": universe.industries.get(ticker, ""),
                 "advanced": row["close"] > row["previous_close"],
                 "declined": row["close"] < row["previous_close"],
                 "unchanged": row["close"] == row["previous_close"],
                 "new_high": row["high"] >= row["prior_52w_high"],
                 "new_low": row["low"] <= row["prior_52w_low"],
+                "close": float(row["close"]),
+                "high": float(row["high"]),
+                "prior_52w_high": float(row["prior_52w_high"]),
                 "above_20": row["close"] > row["sma20"],
                 "below_20": row["close"] < row["sma20"],
                 "above_50": row["close"] > row["sma50"],
@@ -539,6 +603,27 @@ def _summarize_index(universe: IndexUniverse, price_data: dict[str, pd.DataFrame
         }
 
     breadth = pd.DataFrame(records)
+    new_high_frame = breadth.loc[breadth["new_high"]].copy()
+    if not new_high_frame.empty:
+        new_high_frame["pct_above_prior_52w_high"] = (
+            (new_high_frame["high"] / new_high_frame["prior_52w_high"] - 1) * 100
+        )
+    new_high_rows = [
+        {
+            "Ticker": str(row["ticker"]),
+            "Name": str(row.get("name") or ""),
+            "Sector": str(row.get("sector") or "Unknown"),
+            "Industry": str(row.get("industry") or ""),
+            "Close": round(float(row["close"]), 2),
+            "High": round(float(row["high"]), 2),
+            "Prior 52W High": round(float(row["prior_52w_high"]), 2),
+            "% Above Prior 52W High": round(float(row["pct_above_prior_52w_high"]), 2),
+        }
+        for _, row in new_high_frame.sort_values(
+            by=["sector", "ticker"],
+            ascending=[True, True],
+        ).iterrows()
+    ]
     processed = len(breadth)
     advancers = int(breadth["advanced"].sum())
     decliners = int(breadth["declined"].sum())
@@ -580,6 +665,7 @@ def _summarize_index(universe: IndexUniverse, price_data: dict[str, pd.DataFrame
         "advance_decline_ratio": ad_ratio,
         "new_highs": int(breadth["new_high"].sum()),
         "new_high_tickers": sorted(breadth.loc[breadth["new_high"], "ticker"].astype(str).tolist()),
+        "new_high_rows": new_high_rows,
         "new_lows": int(breadth["new_low"].sum()),
         "new_low_tickers": sorted(breadth.loc[breadth["new_low"], "ticker"].astype(str).tolist()),
         "above_20": int(breadth["above_20"].sum()),
