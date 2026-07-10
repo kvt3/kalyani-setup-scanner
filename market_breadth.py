@@ -16,6 +16,11 @@ ISHARES_IWM_HOLDINGS_URL = (
     "1467271812596.ajax?fileType=csv&fileName=IWM_holdings&dataType=fund"
 )
 ISHARES_IWM_PRODUCT_URL = "https://www.ishares.com/us/products/239710/ishares-russell-2000-etf"
+ISHARES_IWM_HOLDINGS_DOCUMENT_URL = (
+    "https://www.blackrock.com/varnish-api/blk-one01-product-data/product-data/api/v1/get-fund-document"
+    "?appType=PRODUCT_PAGE&appSubType=ISHARES&targetSite=us-ishares&locale=en_US"
+    "&portfolioId=239710&userType=individual&asOfDate={as_of_date}&component=holdings"
+)
 IWM_HOLDINGS_CACHE_PATH = DATA_DIR / "iwm_holdings_cache.csv"
 
 NASDAQ100_FALLBACK_TICKERS = [
@@ -183,6 +188,17 @@ def _read_ishares_holdings_csv(text: str) -> pd.DataFrame:
     return table.rename(columns={columns["Ticker"]: "Ticker"})
 
 
+def _iwm_holdings_document_urls() -> list[str]:
+    completed_date = latest_completed_us_session()
+    dates = [
+        (completed_date - pd.Timedelta(days=offset)).strftime("%Y%m%d")
+        for offset in range(0, 8)
+    ]
+    urls = [ISHARES_IWM_HOLDINGS_DOCUMENT_URL.format(as_of_date=date) for date in dates]
+    urls.append(ISHARES_IWM_HOLDINGS_URL)
+    return urls
+
+
 def _load_sp500_universe() -> IndexUniverse:
     table = _read_html_table("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", ("Symbol",))
     tickers = [_normalize_symbol(symbol) for symbol in table["Symbol"]]
@@ -280,10 +296,34 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
         session = requests.Session()
         try:
             session.get(ISHARES_IWM_PRODUCT_URL, headers=headers, timeout=30)
-            response = session.get(ISHARES_IWM_HOLDINGS_URL, headers=headers, timeout=30)
+            response = None
+            last_error: Exception | None = None
+            for url in _iwm_holdings_document_urls():
+                try:
+                    candidate = session.get(url, headers=headers, timeout=30)
+                    candidate.raise_for_status()
+                    _read_ishares_holdings_csv(candidate.text)
+                    response = candidate
+                    break
+                except Exception as exc:
+                    last_error = exc
+            if response is None:
+                raise RuntimeError(f"No iShares holdings CSV response found: {last_error}")
         except requests.exceptions.SSLError:
             session.get(ISHARES_IWM_PRODUCT_URL, headers=headers, timeout=30, verify=False)
-            response = session.get(ISHARES_IWM_HOLDINGS_URL, headers=headers, timeout=30, verify=False)
+            response = None
+            last_error = None
+            for url in _iwm_holdings_document_urls():
+                try:
+                    candidate = session.get(url, headers=headers, timeout=30, verify=False)
+                    candidate.raise_for_status()
+                    _read_ishares_holdings_csv(candidate.text)
+                    response = candidate
+                    break
+                except Exception as exc:
+                    last_error = exc
+            if response is None:
+                raise RuntimeError(f"No iShares holdings CSV response found: {last_error}")
         response.raise_for_status()
         table = _read_ishares_holdings_csv(response.text)
         DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -292,7 +332,7 @@ def _load_iwm_universe(fallback_tickers: list[str]) -> IndexUniverse:
     except Exception as exc:
         source_error = str(exc)
         if IWM_HOLDINGS_CACHE_PATH.exists():
-            table = pd.read_csv(IWM_HOLDINGS_CACHE_PATH)
+            table = _read_ishares_holdings_csv(IWM_HOLDINGS_CACHE_PATH.read_text(encoding="utf-8-sig", errors="replace"))
             source = f"Cached iShares IWM holdings filtered to saved $500M+ universe; live source unavailable: {exc}"
         else:
             table = pd.DataFrame()
