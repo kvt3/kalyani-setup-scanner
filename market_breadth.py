@@ -24,104 +24,114 @@ ISHARES_IWM_HOLDINGS_DOCUMENT_URL = (
 IWM_HOLDINGS_CACHE_PATH = DATA_DIR / "iwm_holdings_cache.csv"
 QQQ_HOLDINGS_CACHE_PATH = DATA_DIR / "qqq_holdings_cache.csv"
 DOW_HOLDINGS_CACHE_PATH = DATA_DIR / "dow_holdings_cache.csv"
+NASDAQ100_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/List_of_NASDAQ-100_companies"
 
-NASDAQ100_FALLBACK_TICKERS = [
-    "AAPL",
-    "ABNB",
-    "ADBE",
-    "ADI",
-    "ADP",
-    "ADSK",
-    "AEP",
-    "ALNY",
-    "AMAT",
-    "AMD",
-    "AMGN",
-    "AMZN",
-    "APP",
-    "ARM",
-    "ASML",
-    "AVGO",
-    "AXON",
-    "BKR",
-    "CCEP",
-    "CHTR",
-    "CMCSA",
-    "COST",
-    "CPRT",
-    "CRWD",
-    "CSCO",
-    "CSGP",
-    "CSX",
-    "CTAS",
-    "DASH",
-    "DDOG",
-    "DXCM",
-    "EA",
-    "EXC",
-    "FANG",
-    "FAST",
-    "FER",
-    "FTNT",
-    "GEHC",
-    "GILD",
-    "GOOG",
-    "GOOGL",
-    "HON",
-    "IDXX",
-    "INSM",
-    "INTC",
-    "INTU",
-    "ISRG",
-    "KDP",
-    "KHC",
-    "KLAC",
-    "LIN",
-    "LRCX",
-    "MAR",
-    "MCHP",
-    "MDLZ",
-    "MELI",
-    "META",
-    "MNST",
-    "MRVL",
-    "MSFT",
-    "MSTR",
-    "MU",
-    "NFLX",
-    "NVDA",
-    "NXPI",
-    "ODFL",
-    "ORLY",
-    "PANW",
-    "PAYX",
-    "PCAR",
-    "PDD",
-    "PEP",
-    "PLTR",
-    "PYPL",
-    "QCOM",
-    "REGN",
-    "ROP",
-    "ROST",
-    "SBUX",
-    "SNDK",
-    "SNPS",
-    "STX",
-    "TEAM",
-    "TMUS",
-    "TSLA",
-    "TTD",
-    "TTWO",
-    "TXN",
-    "VRSK",
-    "VRTX",
-    "WBD",
-    "WDAY",
-    "WMT",
-    "XEL",
-    "ZS",
+NASDAQ100_FALLBACK_ROWS = [
+    {"Ticker": "ADBE", "Name": "Adobe Inc.", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "AMD", "Name": "Advanced Micro Devices", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "ABNB", "Name": "Airbnb", "Sector": "Consumer Discretionary", "Industry": "Diversified Commercial Services"},
+    {"Ticker": "ALNY", "Name": "Alnylam Pharmaceuticals", "Sector": "Health Care", "Industry": "Biotechnology"},
+    {"Ticker": "GOOGL", "Name": "Alphabet Inc. (Class A)", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "GOOG", "Name": "Alphabet Inc. (Class C)", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "AMZN", "Name": "Amazon", "Sector": "Consumer Discretionary", "Industry": "Catalog/Specialty Distribution"},
+    {"Ticker": "AEP", "Name": "American Electric Power", "Sector": "Utilities", "Industry": "Electric Utilities"},
+    {"Ticker": "AMGN", "Name": "Amgen", "Sector": "Health Care", "Industry": "Biotechnology"},
+    {"Ticker": "ADI", "Name": "Analog Devices", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "AAPL", "Name": "Apple Inc.", "Sector": "Technology", "Industry": "Computer Hardware"},
+    {"Ticker": "AMAT", "Name": "Applied Materials", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "APP", "Name": "AppLovin", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "ARM", "Name": "Arm Holdings", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "ASML", "Name": "ASML Holding", "Sector": "Technology", "Industry": "Industrial Machinery"},
+    {"Ticker": "ALAB", "Name": "Astera Labs", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "ADSK", "Name": "Autodesk", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "ADP", "Name": "Automatic Data Processing", "Sector": "Industrials", "Industry": "Diversified Commercial Services"},
+    {"Ticker": "AXON", "Name": "Axon Enterprise", "Sector": "Industrials", "Industry": "Ordnance & Accessories"},
+    {"Ticker": "BKR", "Name": "Baker Hughes", "Sector": "Energy", "Industry": "Oil Equipment & Services"},
+    {"Ticker": "BKNG", "Name": "Booking Holdings", "Sector": "Consumer Discretionary", "Industry": "Transportation Services"},
+    {"Ticker": "AVGO", "Name": "Broadcom", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "CDNS", "Name": "Cadence Design Systems", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "CTAS", "Name": "Cintas", "Sector": "Industrials", "Industry": "Garments & Clothing"},
+    {"Ticker": "CSCO", "Name": "Cisco", "Sector": "Telecommunications", "Industry": "Computer Communications Equipment"},
+    {"Ticker": "CCEP", "Name": "Coca-Cola Europacific Partners", "Sector": "Consumer Staples", "Industry": "Soft Drinks"},
+    {"Ticker": "CMCSA", "Name": "Comcast", "Sector": "Telecommunications", "Industry": "Cable & Other Pay Television Services"},
+    {"Ticker": "CEG", "Name": "Constellation Energy", "Sector": "Utilities", "Industry": "Electric Utilities"},
+    {"Ticker": "CPRT", "Name": "Copart", "Sector": "Consumer Discretionary", "Industry": "Retail"},
+    {"Ticker": "CRWV", "Name": "CoreWeave", "Sector": "Technology", "Industry": "Computer Services"},
+    {"Ticker": "COST", "Name": "Costco", "Sector": "Consumer Discretionary", "Industry": "Department/Specialty Retail Stores"},
+    {"Ticker": "CRWD", "Name": "CrowdStrike", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "CSX", "Name": "CSX Corporation", "Sector": "Industrials", "Industry": "Railroads"},
+    {"Ticker": "DDOG", "Name": "Datadog", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "DXCM", "Name": "DexCom", "Sector": "Health Care", "Industry": "Medical/Dental Instruments"},
+    {"Ticker": "FANG", "Name": "Diamondback Energy", "Sector": "Energy", "Industry": "Oil & Gas Production"},
+    {"Ticker": "DASH", "Name": "DoorDash", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "EA", "Name": "Electronic Arts", "Sector": "Consumer Discretionary", "Industry": "Miscellaneous Amusement & Recreation Services"},
+    {"Ticker": "EXC", "Name": "Exelon", "Sector": "Utilities", "Industry": "Power Generation"},
+    {"Ticker": "FAST", "Name": "Fastenal", "Sector": "Industrials", "Industry": "Construction & Materials"},
+    {"Ticker": "FER", "Name": "Ferrovial", "Sector": "Industrials", "Industry": "Military, Government, Technical"},
+    {"Ticker": "FTNT", "Name": "Fortinet", "Sector": "Technology", "Industry": "Computer Peripheral Equipment"},
+    {"Ticker": "GEHC", "Name": "GE HealthCare", "Sector": "Health Care", "Industry": "Medical Electronics"},
+    {"Ticker": "GILD", "Name": "Gilead Sciences", "Sector": "Health Care", "Industry": "Biotechnology"},
+    {"Ticker": "HONA", "Name": "Honeywell Aerospace", "Sector": "Industrials", "Industry": "Aerospace"},
+    {"Ticker": "HON", "Name": "Honeywell Technologies", "Sector": "Industrials", "Industry": "Diversified Industrials"},
+    {"Ticker": "IDXX", "Name": "Idexx Laboratories", "Sector": "Health Care", "Industry": "Biotechnology"},
+    {"Ticker": "INTC", "Name": "Intel", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "INTU", "Name": "Intuit", "Sector": "Technology", "Industry": "Computer Software"},
+    {"Ticker": "ISRG", "Name": "Intuitive Surgical", "Sector": "Health Care", "Industry": "Industrial Specialties"},
+    {"Ticker": "KDP", "Name": "Keurig Dr Pepper", "Sector": "Consumer Staples", "Industry": "Soft Drinks"},
+    {"Ticker": "KLAC", "Name": "KLA Corporation", "Sector": "Technology", "Industry": "Electronic Components"},
+    {"Ticker": "KHC", "Name": "Kraft Heinz", "Sector": "Consumer Staples", "Industry": "Packaged Foods"},
+    {"Ticker": "LRCX", "Name": "Lam Research", "Sector": "Technology", "Industry": "Industrial Machinery"},
+    {"Ticker": "LIN", "Name": "Linde plc", "Sector": "Basic Materials", "Industry": "Major Chemicals"},
+    {"Ticker": "LITE", "Name": "Lumentum", "Sector": "Technology", "Industry": "Communication Equipment"},
+    {"Ticker": "MAR", "Name": "Marriott International", "Sector": "Consumer Discretionary", "Industry": "Hotels/Resorts"},
+    {"Ticker": "MRVL", "Name": "Marvell Technology", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "MELI", "Name": "Mercado Libre", "Sector": "Consumer Discretionary", "Industry": "Catalog/Specialty Distribution"},
+    {"Ticker": "META", "Name": "Meta Platforms", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "MCHP", "Name": "Microchip Technology", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "MU", "Name": "Micron Technology", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "MSFT", "Name": "Microsoft", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "MSTR", "Name": "MicroStrategy", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "MDLZ", "Name": "Mondelez International", "Sector": "Consumer Staples", "Industry": "Packaged Foods"},
+    {"Ticker": "MPWR", "Name": "Monolithic Power Systems", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "MNST", "Name": "Monster Beverage", "Sector": "Consumer Staples", "Industry": "Soft Drinks"},
+    {"Ticker": "NBIS", "Name": "Nebius Group", "Sector": "Technology", "Industry": "Computer Services"},
+    {"Ticker": "NFLX", "Name": "Netflix, Inc.", "Sector": "Consumer Discretionary", "Industry": "Consumer Electronics"},
+    {"Ticker": "NVDA", "Name": "Nvidia", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "NXPI", "Name": "NXP Semiconductors", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "ORLY", "Name": "O'Reilly Automotive", "Sector": "Consumer Discretionary", "Industry": "Specialty Retailers"},
+    {"Ticker": "ODFL", "Name": "Old Dominion Freight Line", "Sector": "Industrials", "Industry": "Trucking"},
+    {"Ticker": "PCAR", "Name": "Paccar", "Sector": "Consumer Discretionary", "Industry": "Motor Vehicles"},
+    {"Ticker": "PLTR", "Name": "Palantir Technologies", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "PANW", "Name": "Palo Alto Networks", "Sector": "Technology", "Industry": "Computer Peripheral Equipment"},
+    {"Ticker": "PAYX", "Name": "Paychex", "Sector": "Industrials", "Industry": "Diversified Commercial Services"},
+    {"Ticker": "PYPL", "Name": "PayPal", "Sector": "Industrials", "Industry": "Diversified Commercial Services"},
+    {"Ticker": "PDD", "Name": "PDD Holdings", "Sector": "Technology", "Industry": "EDP Services"},
+    {"Ticker": "PEP", "Name": "PepsiCo", "Sector": "Consumer Staples", "Industry": "Soft Drinks"},
+    {"Ticker": "QCOM", "Name": "Qualcomm", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "REGN", "Name": "Regeneron Pharmaceuticals", "Sector": "Health Care", "Industry": "Biotechnology"},
+    {"Ticker": "RKLB", "Name": "Rocket Lab", "Sector": "Industrials", "Industry": "Aerospace"},
+    {"Ticker": "ROP", "Name": "Roper Technologies", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "ROST", "Name": "Ross Stores", "Sector": "Consumer Discretionary", "Industry": "Clothing/Shoe/Accessory Stores"},
+    {"Ticker": "SNDK", "Name": "Sandisk", "Sector": "Technology", "Industry": "Electronic Components"},
+    {"Ticker": "STX", "Name": "Seagate Technology", "Sector": "Technology", "Industry": "Electronic Components"},
+    {"Ticker": "SHOP", "Name": "Shopify", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "SPCX", "Name": "SpaceX", "Sector": "Telecommunications", "Industry": "Telecommunications Services"},
+    {"Ticker": "SBUX", "Name": "Starbucks", "Sector": "Consumer Discretionary", "Industry": "Restaurants"},
+    {"Ticker": "SNPS", "Name": "Synopsys", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "TMUS", "Name": "T-Mobile US", "Sector": "Telecommunications", "Industry": "Telecommunications Services"},
+    {"Ticker": "TTWO", "Name": "Take-Two Interactive", "Sector": "Consumer Discretionary", "Industry": "Miscellaneous Amusement & Recreation Services"},
+    {"Ticker": "TER", "Name": "Teradyne", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "TSLA", "Name": "Tesla, Inc.", "Sector": "Consumer Discretionary", "Industry": "Automobiles & Parts"},
+    {"Ticker": "TXN", "Name": "Texas Instruments", "Sector": "Technology", "Industry": "Semiconductors"},
+    {"Ticker": "TRI", "Name": "Thomson Reuters", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "VRTX", "Name": "Vertex Pharmaceuticals", "Sector": "Health Care", "Industry": "Biotechnology"},
+    {"Ticker": "WMT", "Name": "Walmart", "Sector": "Consumer Discretionary", "Industry": "Department/Specialty Retail Stores"},
+    {"Ticker": "WBD", "Name": "Warner Bros. Discovery", "Sector": "Consumer Discretionary", "Industry": "Entertainment"},
+    {"Ticker": "WDC", "Name": "Western Digital", "Sector": "Technology", "Industry": "Electronic Components"},
+    {"Ticker": "WDAY", "Name": "Workday, Inc.", "Sector": "Technology", "Industry": "Software"},
+    {"Ticker": "XEL", "Name": "Xcel Energy", "Sector": "Utilities", "Industry": "Conventional Electricity"},
 ]
+NASDAQ100_FALLBACK_TICKERS = [row["Ticker"] for row in NASDAQ100_FALLBACK_ROWS]
 
 DOW30_FALLBACK_ROWS = [
     {"Ticker": "MMM", "Name": "3M", "Sector": "Industrials"},
@@ -204,6 +214,25 @@ def _read_html_table(url: str, required_columns: tuple[str, ...]) -> pd.DataFram
         if all(column in columns for column in required_columns):
             return table
     raise RuntimeError(f"Could not find table with columns: {required_columns}")
+
+
+def _first_matching_column(
+    table: pd.DataFrame,
+    *,
+    exact: tuple[str, ...] = (),
+    contains: tuple[str, ...] = (),
+) -> Any:
+    columns = {str(column).strip(): column for column in table.columns}
+    for candidate in exact:
+        if candidate in columns:
+            return columns[candidate]
+    if contains:
+        needles = tuple(needle.lower() for needle in contains)
+        for column in table.columns:
+            normalized = str(column).lower()
+            if all(needle in normalized for needle in needles):
+                return column
+    return ""
 
 
 def _read_ishares_holdings_csv(text: str) -> pd.DataFrame:
@@ -364,10 +393,10 @@ def _load_nasdaq100_universe() -> IndexUniverse:
     symbol_col = "Ticker"
     source = "Wikipedia Nasdaq 100 constituents"
     try:
-        table = _read_html_table("https://en.wikipedia.org/wiki/Nasdaq-100", ("Ticker",))
+        table = _read_html_table(NASDAQ100_WIKIPEDIA_URL, ("Ticker",))
     except Exception as ticker_exc:
         try:
-            table = _read_html_table("https://en.wikipedia.org/wiki/Nasdaq-100", ("Symbol",))
+            table = _read_html_table(NASDAQ100_WIKIPEDIA_URL, ("Symbol",))
             symbol_col = "Symbol"
         except Exception as symbol_exc:
             if QQQ_HOLDINGS_CACHE_PATH.exists():
@@ -378,24 +407,32 @@ def _load_nasdaq100_universe() -> IndexUniverse:
                     proxy="QQQ",
                     source=f"Cached QQQ/Nasdaq 100 holdings; live source unavailable: {ticker_exc}; {symbol_exc}",
                 )
-            tickers = NASDAQ100_FALLBACK_TICKERS
-            return IndexUniverse(
+            return _universe_from_table(
                 key="nasdaq100",
                 label="QQQ / Nasdaq 100",
                 proxy="QQQ",
-                tickers=sorted({ticker for ticker in tickers if ticker}),
-                sectors={ticker: "Nasdaq 100 fallback" for ticker in tickers if ticker},
-                industries={ticker: "" for ticker in tickers if ticker},
-                names={ticker: "" for ticker in tickers if ticker},
+                table=pd.DataFrame(NASDAQ100_FALLBACK_ROWS),
+                symbol_col="Ticker",
+                sector_col="Sector",
+                industry_col="Industry",
+                name_col="Name",
                 source=(
-                    "Fallback QQQ/Nasdaq 100 tickers; live source unavailable: "
+                    "Fallback QQQ/Nasdaq 100 tickers from Wikipedia snapshot; live source unavailable: "
                     f"{ticker_exc}; {symbol_exc}"
                 ),
             )
 
-    sector_col = "GICS Sector" if "GICS Sector" in table.columns else "Sector" if "Sector" in table.columns else ""
-    industry_col = "GICS Sub-Industry" if "GICS Sub-Industry" in table.columns else "Sub-Industry" if "Sub-Industry" in table.columns else ""
-    name_col = "Company" if "Company" in table.columns else "Security" if "Security" in table.columns else "Name" if "Name" in table.columns else ""
+    sector_col = _first_matching_column(
+        table,
+        exact=("GICS Sector", "Sector"),
+        contains=("industry",),
+    )
+    industry_col = _first_matching_column(
+        table,
+        exact=("GICS Sub-Industry", "Sub-Industry", "Industry"),
+        contains=("subsector",),
+    )
+    name_col = _first_matching_column(table, exact=("Company", "Security", "Name"))
     cache = pd.DataFrame(
         {
             "Ticker": table[symbol_col].map(_normalize_symbol),
